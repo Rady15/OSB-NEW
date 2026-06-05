@@ -166,8 +166,27 @@ const Transactions = () => {
     const handleOpenModal = (mode, tx = null) => {
         setModalMode(mode);
         setSelectedTransaction(tx);
+        // Always seed attachments: [] so the attachments UI never reads
+        // `formData.attachments` as undefined (existing transactions on
+        // the server don't carry that field).
         if (tx) {
-            setFormData({ ...tx });
+            setFormData({
+                id: '',
+                company: '',
+                type: 'commercialRegistration',
+                status: 'pending',
+                priority: 'medium',
+                assignedTo: '',
+                createdDate: '',
+                dueDate: '',
+                amount: 0,
+                quotedAmount: 0,
+                quoteSent: false,
+                quoteDate: '',
+                attachments: [],
+                ...tx,
+                attachments: Array.isArray(tx.attachments) ? tx.attachments : [],
+            });
         } else {
             setFormData({
                 id: `TR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -178,7 +197,11 @@ const Transactions = () => {
                 assignedTo: '',
                 createdDate: new Date().toISOString().split('T')[0],
                 dueDate: '',
-                amount: 0
+                amount: 0,
+                quotedAmount: 0,
+                quoteSent: false,
+                quoteDate: '',
+                attachments: []
             });
         }
         setShowModal(true);
@@ -317,8 +340,8 @@ const Transactions = () => {
                 );
             }
 
-            const newDesc = (formData.description || '').trim();
-            const oldDesc = (selectedTransaction.description || '').trim();
+            const newDesc = String(formData.description ?? '').trim();
+            const oldDesc = String(selectedTransaction.description ?? '').trim();
             if (newDesc && newDesc !== oldDesc) {
                 tasks.push(
                     servicesAPI.addDescription(requestId, newDesc)
@@ -827,7 +850,7 @@ const Transactions = () => {
                                     </div>
                                     
                                     {/* Uploaded Files Preview */}
-                                    {formData.attachments.length > 0 && (
+                                    {(formData.attachments?.length ?? 0) > 0 && (
                                         <div className="mt-4 space-y-2">
                                             {formData.attachments.map((file, index) => (
                                                 <div key={index} className="flex items-center justify-between p-2 bg-dark-50 dark:bg-dark-700 rounded-lg">
