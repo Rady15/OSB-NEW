@@ -52,31 +52,49 @@ const Dashboard = () => {
                 const allData = await servicesAPI.getAllRequests({ signal: controller.signal });
                 const all = Array.isArray(allData) ? allData : allData.requests || allData.services || [];
 
-                // Normalize status to lowercase
-                const normalize = (s) => (s || '').toLowerCase();
+                // Normalize status to lowercase + strip spaces/underscores/hyphens
+                // so server values like "WaitingPayment" or "waiting payment" map
+                // to the same bucket.
+                const normalize = (s) => (s || '').toLowerCase().replace(/[\s_-]/g, '');
 
-                const pending   = all.filter(i => normalize(i.status) === 'pending').length;
-                const active    = all.filter(i => normalize(i.status) === 'active' || normalize(i.status) === 'inprogress').length;
-                const completed = all.filter(i => normalize(i.status) === 'completed').length;
-                const total     = all.length;
+                const pending         = all.filter(i => normalize(i.status) === 'pending').length;
+                const processing      = all.filter(i => ['processing', 'inprogress', 'active'].includes(normalize(i.status))).length;
+                const waitingPayment  = all.filter(i => normalize(i.status) === 'waitingpayment').length;
+                const completed       = all.filter(i => normalize(i.status) === 'completed').length;
+                const rejected        = all.filter(i => ['rejected', 'cancelled'].includes(normalize(i.status))).length;
+                const total           = all.length;
 
                 setStats([
-                    { label: 'totalTransactions', value: total.toString(),     gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',    shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',    trend: 'up', change: '', icon: Building2 },
-                    { label: 'pending',            value: pending.toString(),   gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',  shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',  trend: 'up', change: '', icon: Clock },
-                    { label: 'active',             value: active.toString(),    gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600', shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30', trend: 'up', change: '', icon: TrendingUp },
-                    { label: 'completed',          value: completed.toString(), gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600', shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30', trend: 'up', change: '', icon: CheckCircle },
+                    { label: 'totalTransactions', value: total.toString(),             gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',         shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',         trend: 'up', change: '', icon: Building2 },
+                    { label: 'pending',            value: pending.toString(),           gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',       shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',       trend: 'up', change: '', icon: Clock },
+                    { label: 'processing',         value: processing.toString(),        gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',     shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',     trend: 'up', change: '', icon: TrendingUp },
+                    { label: 'completed',          value: completed.toString(),         gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',  shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30',  trend: 'up', change: '', icon: CheckCircle },
                 ]);
 
-                // Build monthly chart data from createdAt dates
+                // Build monthly chart data: always show the last 7 months (current
+                // month + previous 6) so the area chart has a visible shape even
+                // when the database is empty. Months with no data render at 0.
                 const monthMap = {};
                 all.forEach(item => {
                     if (item.createdAt) {
-                        const month = new Date(item.createdAt).toLocaleString('ar', { month: 'short' });
-                        monthMap[month] = (monthMap[month] || 0) + 1;
+                        const d = new Date(item.createdAt);
+                        if (!isNaN(d)) {
+                            const key = `${d.getFullYear()}-${d.getMonth()}`;
+                            monthMap[key] = (monthMap[key] || 0) + 1;
+                        }
                     }
                 });
-                const monthly = Object.entries(monthMap).map(([name, transactions]) => ({ name, transactions }));
-                setMonthlyData(monthly.length > 0 ? monthly : []);
+                const monthly = [];
+                const now = new Date();
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    monthly.push({
+                        name: d.toLocaleString(isRTL ? 'ar' : 'en', { month: 'short' }),
+                        transactions: monthMap[key] || 0,
+                    });
+                }
+                setMonthlyData(monthly);
 
                 // Build pie chart data from service types
                 const typeMap = {};
@@ -141,11 +159,30 @@ const Dashboard = () => {
     // Recent transactions will be loaded from API
 
     const getStatusColor = (status) => {
-        switch (status) {
-            case 'completed': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-            case 'pending': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-            case 'active': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-            default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
+        switch ((status || '').toLowerCase()) {
+            case 'completed':        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+            case 'pending':          return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+            case 'processing':       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'inprogress':       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'active':           return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'waitingpayment':   return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+            case 'rejected':         return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+            case 'cancelled':        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+            default:                 return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
+        }
+    };
+
+    const getStatusLabel = (status) => {
+        switch ((status || '').toLowerCase()) {
+            case 'completed':        return isRTL ? 'مكتمل' : 'completed';
+            case 'pending':          return isRTL ? 'قيد الانتظار' : 'pending';
+            case 'processing':       return isRTL ? 'قيد المعالجة' : 'processing';
+            case 'inprogress':       return isRTL ? 'قيد التنفيذ' : 'in progress';
+            case 'active':           return isRTL ? 'نشط' : 'active';
+            case 'waitingpayment':   return isRTL ? 'بانتظار الدفع' : 'waiting payment';
+            case 'rejected':         return isRTL ? 'مرفوض' : 'rejected';
+            case 'cancelled':        return isRTL ? 'ملغي' : 'cancelled';
+            default:                 return status || '-';
         }
     };
 
@@ -410,7 +447,7 @@ const Dashboard = () => {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(transaction.status)}`}>
-                                                {transaction.status === 'completed' ? t('completed') : transaction.status === 'pending' ? t('pending') : t('active')}
+                                                {getStatusLabel(transaction.status)}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-dark-500 dark:text-dark-400">

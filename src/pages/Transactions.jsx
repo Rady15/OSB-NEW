@@ -20,7 +20,8 @@ import {
     ChevronRight,
     Calendar,
     FileUp,
-    X
+    X,
+    DollarSign
 } from 'lucide-react';
 
 const Transactions = () => {
@@ -117,7 +118,7 @@ const Transactions = () => {
             // Lowercase (internal/legacy)
             completed:   { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle,  label: 'completed' },
             pending:     { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         icon: Clock,        label: 'pending'   },
-            active:      { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle,  label: 'active'    },
+            processing:  { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle,  label: 'processing' },
             cancelled:   { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,      label: 'cancelled' },
             // API PascalCase values
             waitingforpayment: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: Clock,        label: 'waitingForPayment' },
@@ -440,12 +441,13 @@ const Transactions = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
-                    { label: 'pending',            match: ['pending'],   value: transactionsList.filter(t => ['pending'].includes(t.status)).length.toString(),              color: 'from-amber-500 to-amber-600',     icon: Clock },
-                    { label: 'active',             match: ['active', 'inprogress'], value: transactionsList.filter(t => ['active', 'inprogress'].includes(t.status)).length.toString(), color: 'from-blue-500 to-blue-600',       icon: AlertCircle },
-                    { label: 'completed',          match: ['completed'], value: transactionsList.filter(t => ['completed'].includes(t.status)).length.toString(),           color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
-                    { label: 'cancelled',          match: ['cancelled', 'rejected'], value: transactionsList.filter(t => ['cancelled', 'rejected'].includes(t.status)).length.toString(), color: 'from-red-500 to-red-600',         icon: XCircle },
+                    { label: 'pending',            match: ['pending'],            value: transactionsList.filter(t => ['pending'].includes(t.status)).length.toString(),            color: 'from-amber-500 to-amber-600',     icon: Clock },
+                    { label: 'processing',         match: ['processing', 'inprogress'], value: transactionsList.filter(t => ['processing', 'inprogress'].includes(t.status)).length.toString(), color: 'from-blue-500 to-blue-600',   icon: AlertCircle },
+                    { label: 'waitingPayment',     match: ['waitingpayment'],     value: transactionsList.filter(t => ['waitingpayment'].includes(t.status)).length.toString(),     color: 'from-purple-500 to-purple-600', icon: DollarSign },
+                    { label: 'completed',          match: ['completed'],          value: transactionsList.filter(t => ['completed'].includes(t.status)).length.toString(),          color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
+                    { label: 'rejected',           match: ['rejected', 'cancelled'], value: transactionsList.filter(t => ['rejected', 'cancelled'].includes(t.status)).length.toString(), color: 'from-red-500 to-red-600',   icon: XCircle },
                 ].map((stat, index) => {
                     const Icon = stat.icon;
                     return (
