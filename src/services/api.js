@@ -1,13 +1,9 @@
 import axios from 'axios';
 
-const ABSOLUTE_API_URL = import.meta.env.VITE_API_BASE_URL_ABSOLUTE;
-const PROXY_API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-
-const isProd = import.meta.env.PROD;
-const BASE_URL = (isProd && ABSOLUTE_API_URL) ? ABSOLUTE_API_URL : PROXY_API_URL;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const api = axios.create({
-    baseURL: BASE_URL,
+    baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -213,3 +209,4 @@ export const servicesAPI = {
 
 
 export default api;
+
