@@ -409,7 +409,9 @@ const Transactions = () => {
     const filteredTransactions = transactionsList.filter(tx => {
         const matchesSearch = tx.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
             tx.company.includes(searchQuery);
-        const matchesStatus = statusFilter === 'all' || tx.status === statusFilter;
+        const matchesStatus = statusFilter === 'all' ||
+            (tx.status || '').toLowerCase().replace(/[\s_-]/g, '') ===
+            statusFilter.toLowerCase().replace(/[\s_-]/g, '');
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         
         // If user is an employee, only show transactions assigned to them
@@ -496,9 +498,10 @@ const Transactions = () => {
                                 >
                                     <option value="all">{isRTL ? 'جميع الحالات' : 'All Status'}</option>
                                     <option value="pending">{t('pending')}</option>
-                                    <option value="active">{t('active')}</option>
+                                    <option value="processing">{t('processing')}</option>
+                                    <option value="waitingPayment">{t('waitingPayment')}</option>
                                     <option value="completed">{t('completed')}</option>
-                                    <option value="cancelled">{t('cancelled')}</option>
+                                    <option value="rejected">{t('rejected')}</option>
                                 </select>
                                 <Filter className={`w-4 h-4 text-dark-400 absolute top-1/2 -translate-y-1/2 ${isRTL ? 'left-3' : 'right-3'} pointer-events-none`} />
                             </div>
@@ -783,9 +786,10 @@ const Transactions = () => {
                                         className="input-field"
                                     >
                                         <option value="pending">{t('pending')}</option>
-                                        <option value="active">{t('active')}</option>
+                                        <option value="processing">{t('processing')}</option>
+                                        <option value="waitingPayment">{t('waitingPayment')}</option>
                                         <option value="completed">{t('completed')}</option>
-                                        <option value="cancelled">{t('cancelled')}</option>
+                                        <option value="rejected">{t('rejected')}</option>
                                     </select>
                                 </div>
                             </div>
