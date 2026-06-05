@@ -213,6 +213,50 @@ export const servicesAPI = {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Status helpers — bridge between the server enum
+// (Pending, InProgress, Completed, Cancelled, WaitingForPayment, Paid,
+//  MissingDocuments) and the user-facing label keys used across pages.
+// ---------------------------------------------------------------------------
+
+/** Map enum value received from the server to a normalised display key. */
+export function serverStatusToDisplay(s) {
+    const raw = (s || '').toLowerCase().replace(/[\s_-]/g, '');
+    const map = {
+        pending: 'pending',
+        inprogress: 'inProgress',
+        waitingforpayment: 'waitingPayment',
+        paid: 'paid',
+        completed: 'completed',
+        cancelled: 'cancelled',
+        missingdocuments: 'missingDocuments',
+    };
+    return map[raw] || raw;
+}
+
+/** Map a display key back to the server enum string. */
+export function displayToServerStatus(display) {
+    const raw = (display || '').toLowerCase().replace(/[\s_-]/g, '');
+    const map = {
+        pending: 'Pending',
+        inprogress: 'InProgress',
+        processing: 'InProgress',
+        active: 'InProgress',
+        waitingpayment: 'WaitingForPayment',
+        waitingforpayment: 'WaitingForPayment',
+        paid: 'Paid',
+        completed: 'Completed',
+        cancelled: 'Cancelled',
+        rejected: 'Cancelled',
+        missingdocuments: 'MissingDocuments',
+    };
+    return map[raw] || 'Pending';
+}
+
+/** Normalised lower-case version (no spaces / underscores / hyphens). */
+export function normalizeStatus(s) {
+    return (s || '').toLowerCase().replace(/[\s_-]/g, '');
+}
 
 export default api;
 

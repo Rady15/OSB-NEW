@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { servicesAPI, authAPI } from '../services/api';
+import { servicesAPI, authAPI, serverStatusToDisplay, normalizeStatus } from '../services/api';
 import {
     FileText,
     Building2,
@@ -13,7 +13,8 @@ import {
     ChevronRight,
     Inbox,
     Eye,
-    Edit2
+    Edit2,
+    DollarSign
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -40,6 +41,12 @@ const MyTasks = () => {
 
                 const reqList = Array.isArray(reqs) ? reqs : (reqs?.requests || reqs?.services || []);
                 const userList = Array.isArray(users) ? users : (users?.users || []);
+                const userLookup = new Map();
+                for (const u of userList) {
+                    if (u.id) userLookup.set(u.id, u);
+                    if (u.userName) userLookup.set(u.userName, u);
+                    if (u.email) userLookup.set(u.email, u);
+                }
 
                 const myId = user?.id || user?.name;
                 // /my-requests already returns only the staff's own tasks. For admin view we filter.
@@ -47,36 +54,33 @@ const MyTasks = () => {
                     ? reqList.filter(r => r.assignedEmployeeUserId === myId)
                     : reqList;
 
-                const myTx = myAssigned.map(item => ({
-                    id: item.requestId || item.id,
-                    company: item.userId,
-                    type: item.serviceType || item.type || item.serviceName || '—',
-                    status: (item.status || 'pending').toLowerCase(),
-                    createdDate: item.createdAt ? item.createdAt.split('T')[0] : '—',
-                    attachments: Array.isArray(item.fileUrls) ? item.fileUrls : [],
-                    description: item.serviceDetails || item.description || '',
-                }));
+                const myTx = myAssigned.map(item => {
+                    const u = userLookup.get(item.userId);
+                    return {
+                        id: item.requestId || item.id,
+                        company: u?.userName || u?.email || item.userId,
+                        type: item.serviceType || item.type || item.serviceName || '—',
+                        status: serverStatusToDisplay(item.status) || 'pending',
+                        createdDate: item.createdAt ? item.createdAt.split('T')[0] : '—',
+                        attachments: Array.isArray(item.fileUrls) ? item.fileUrls : [],
+                        description: item.serviceDetails || item.description || '',
+                    };
+                });
 
                 // "Assigned companies" = unique userIds across the employee's assigned requests.
-                const companyByUserId = new Map();
-                for (const u of userList) {
-                    if (u.userName) companyByUserId.set(u.userName, u);
-                    if (u.id) companyByUserId.set(u.id, u);
-                    if (u.email) companyByUserId.set(u.email, u);
-                }
                 const seen = new Set();
                 const myCompanies = [];
                 for (const r of myAssigned) {
                     const cid = r.userId;
                     if (!cid || seen.has(cid)) continue;
                     seen.add(cid);
-                    const u = companyByUserId.get(cid) || {};
+                    const u = userLookup.get(cid) || {};
                     myCompanies.push({
                         id: cid,
-                        name: u.fullName || u.userName || cid,
+                        name: u.userName || cid,
                         email: u.email || '—',
                         phone: u.phoneNumber || '—',
-                        status: u.isSuspended ? 'inactive' : 'active',
+                        status: u.isActive === false ? 'inactive' : 'active',
                         requestCount: myAssigned.filter(x => x.userId === cid).length,
                     });
                 }
@@ -92,15 +96,15 @@ const MyTasks = () => {
 
     const getStatusBadge = (status) => {
         const config = {
-            completed:           { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle,  label: 'completed' },
-            pending:             { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         icon: Clock,        label: 'pending' },
-            active:              { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle,  label: 'active' },
-            inprogress:          { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle,  label: 'inProgress' },
-            waitingforpayment:   { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',     icon: Clock,        label: 'waitingForPayment' },
-            cancelled:           { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,      label: 'cancelled' },
-            rejected:            { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,      label: 'rejected' },
+            completed:         { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle, label: 'completed' },
+            pending:           { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         icon: Clock,       label: 'pending' },
+            inprogress:        { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle, label: 'inProgress' },
+            waitingpayment:    { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',     icon: Clock,       label: 'waitingPayment' },
+            paid:              { color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',             icon: DollarSign,  label: 'paid' },
+            cancelled:         { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,     label: 'cancelled' },
+            missingdocuments:  { color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',     icon: AlertCircle, label: 'missingDocuments' },
         };
-        const key = (status || '').toLowerCase().replace(/[\s_-]/g, '');
+        const key = normalizeStatus(status);
         const entry = config[key] || config.pending;
         const { color, icon: Icon, label } = entry;
         return (
@@ -112,12 +116,12 @@ const MyTasks = () => {
     };
 
     const stats = useMemo(() => {
-        const norm = (s) => (s || '').toLowerCase().replace(/[\s_-]/g, '');
         return [
-            { label: 'pending',    value: transactions.filter(x => norm(x.status) === 'pending').length,    color: 'from-amber-500 to-amber-600',     icon: Clock },
-            { label: 'inProgress', value: transactions.filter(x => ['active', 'inprogress'].includes(norm(x.status))).length, color: 'from-blue-500 to-blue-600',       icon: AlertCircle },
-            { label: 'completed',  value: transactions.filter(x => norm(x.status) === 'completed').length,  color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
-            { label: 'cancelled',  value: transactions.filter(x => ['cancelled', 'rejected'].includes(norm(x.status))).length, color: 'from-red-500 to-red-600',         icon: XCircle },
+            { label: 'pending',         value: transactions.filter(x => normalizeStatus(x.status) === 'pending').length,         color: 'from-amber-500 to-amber-600',     icon: Clock },
+            { label: 'inProgress',      value: transactions.filter(x => ['inprogress', 'processing'].includes(normalizeStatus(x.status))).length, color: 'from-blue-500 to-blue-600', icon: AlertCircle },
+            { label: 'waitingPayment',  value: transactions.filter(x => normalizeStatus(x.status) === 'waitingpayment').length,  color: 'from-purple-500 to-purple-600',   icon: DollarSign },
+            { label: 'completed',       value: transactions.filter(x => normalizeStatus(x.status) === 'completed').length,      color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
+            { label: 'cancelled',       value: transactions.filter(x => ['cancelled', 'rejected'].includes(normalizeStatus(x.status))).length, color: 'from-red-500 to-red-600', icon: XCircle },
         ];
     }, [transactions]);
 

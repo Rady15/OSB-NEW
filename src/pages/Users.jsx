@@ -38,7 +38,7 @@ const Users = () => {
                     email: u.email || '—',
                     phone: u.phoneNumber || '—',
                     role: (u.role || 'employee').toLowerCase(),
-                    status: u.isSuspended ? 'inactive' : 'active',
+                    status: u.isActive === false ? 'inactive' : 'active',
                     lastLogin: u.lastLogin || '—',
                     avatar: null,
                 }));

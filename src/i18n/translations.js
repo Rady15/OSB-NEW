@@ -35,11 +35,12 @@ export const translations = {
         active: 'نشط',
         inactive: 'غير نشط',
         pending: 'قيد الانتظار',
-        processing: 'قيد المعالجة',
+        inProgress: 'قيد المعالجة',
         waitingPayment: 'بانتظار الدفع',
+        paid: 'تم الدفع',
         completed: 'مكتمل',
         cancelled: 'ملغي',
-        rejected: 'مرفوض',
+        missingDocuments: 'مستندات ناقصة',
 
         // Sidebar
         dashboard: 'الرئيسية',
@@ -255,11 +256,12 @@ export const translations = {
         active: 'Active',
         inactive: 'Inactive',
         pending: 'Pending',
-        processing: 'Processing',
+        inProgress: 'In Progress',
         waitingPayment: 'Waiting Payment',
+        paid: 'Paid',
         completed: 'Completed',
         cancelled: 'Cancelled',
-        rejected: 'Rejected',
+        missingDocuments: 'Missing Documents',
 
         // Sidebar
         dashboard: 'Dashboard',

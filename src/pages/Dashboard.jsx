@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { servicesAPI } from '../services/api';
+import { servicesAPI, normalizeStatus } from '../services/api';
 import { SkeletonCard, SkeletonTable } from '../components/Skeleton';
 import {
     Building2,
@@ -52,22 +52,22 @@ const Dashboard = () => {
                 const allData = await servicesAPI.getAllRequests({ signal: controller.signal });
                 const all = Array.isArray(allData) ? allData : allData.requests || allData.services || [];
 
-                // Normalize status to lowercase + strip spaces/underscores/hyphens
-                // so server values like "WaitingPayment" or "waiting payment" map
-                // to the same bucket.
-                const normalize = (s) => (s || '').toLowerCase().replace(/[\s_-]/g, '');
-
-                const pending         = all.filter(i => normalize(i.status) === 'pending').length;
-                const processing      = all.filter(i => ['processing', 'inprogress', 'active'].includes(normalize(i.status))).length;
-                const waitingPayment  = all.filter(i => normalize(i.status) === 'waitingpayment').length;
-                const completed       = all.filter(i => normalize(i.status) === 'completed').length;
-                const rejected        = all.filter(i => ['rejected', 'cancelled'].includes(normalize(i.status))).length;
-                const total           = all.length;
+                // Normalize status via the shared helper so all pages agree
+                // on bucket names. Server enum: Pending, InProgress, Completed,
+                // Cancelled, WaitingForPayment, Paid, MissingDocuments
+                const pending         = all.filter(i => normalizeStatus(i.status) === 'pending').length;
+                const inProgress      = all.filter(i => ['inprogress', 'processing', 'active'].includes(normalizeStatus(i.status))).length;
+                const waitingPayment  = all.filter(i => normalizeStatus(i.status) === 'waitingpayment').length;
+                const completed       = all.filter(i => normalizeStatus(i.status) === 'completed').length;
+                const cancelled       = all.filter(i => ['cancelled', 'rejected'].includes(normalizeStatus(i.status))).length;
+                const paid           = all.filter(i => normalizeStatus(i.status) === 'paid').length;
+                const missingDocs    = all.filter(i => normalizeStatus(i.status) === 'missingdocuments').length;
+                const total          = all.length;
 
                 setStats([
                     { label: 'totalTransactions', value: total.toString(),             gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',         shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',         trend: 'up', change: '', icon: Building2 },
                     { label: 'pending',            value: pending.toString(),           gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',       shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',       trend: 'up', change: '', icon: Clock },
-                    { label: 'processing',         value: processing.toString(),        gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',     shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',     trend: 'up', change: '', icon: TrendingUp },
+                    { label: 'inProgress',         value: inProgress.toString(),        gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',     shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',     trend: 'up', change: '', icon: TrendingUp },
                     { label: 'completed',          value: completed.toString(),         gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',  shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30',  trend: 'up', change: '', icon: CheckCircle },
                 ]);
 
@@ -112,10 +112,10 @@ const Dashboard = () => {
 
                 // Recent 5 transactions
                 const recent = all.slice(0, 5).map(item => ({
-                    id: item.id || item.requestId || item.serviceId || '-',
+                    id: item.requestId || item.id || item.serviceId || '-',
                     company: item.companyName || item.userName || item.clientName || item.userId || '-',
                     type: item.serviceType || item.type || item.serviceName || '-',
-                    status: normalize(item.status) || 'pending',
+                    status: normalizeStatus(item.status) || 'pending',
                     date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-',
                 }));
                 setRecentTransactions(recent);
@@ -159,29 +159,33 @@ const Dashboard = () => {
     // Recent transactions will be loaded from API
 
     const getStatusColor = (status) => {
-        switch ((status || '').toLowerCase()) {
+        switch (normalizeStatus(status)) {
             case 'completed':        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
             case 'pending':          return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
-            case 'processing':       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-            case 'inprogress':       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
+            case 'inprogress':
+            case 'processing':
             case 'active':           return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
             case 'waitingpayment':   return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400';
+            case 'paid':             return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400';
+            case 'cancelled':
             case 'rejected':         return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-            case 'cancelled':        return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+            case 'missingdocuments': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
             default:                 return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400';
         }
     };
 
     const getStatusLabel = (status) => {
-        switch ((status || '').toLowerCase()) {
-            case 'completed':        return isRTL ? 'مكتمل' : 'completed';
-            case 'pending':          return isRTL ? 'قيد الانتظار' : 'pending';
-            case 'processing':       return isRTL ? 'قيد المعالجة' : 'processing';
-            case 'inprogress':       return isRTL ? 'قيد التنفيذ' : 'in progress';
-            case 'active':           return isRTL ? 'نشط' : 'active';
-            case 'waitingpayment':   return isRTL ? 'بانتظار الدفع' : 'waiting payment';
-            case 'rejected':         return isRTL ? 'مرفوض' : 'rejected';
-            case 'cancelled':        return isRTL ? 'ملغي' : 'cancelled';
+        switch (normalizeStatus(status)) {
+            case 'completed':        return t('completed');
+            case 'pending':          return t('pending');
+            case 'inprogress':
+            case 'processing':
+            case 'active':           return t('inProgress');
+            case 'waitingpayment':   return t('waitingPayment');
+            case 'paid':             return t('paid');
+            case 'cancelled':        return t('cancelled');
+            case 'rejected':         return t('rejected');
+            case 'missingdocuments': return t('missingDocuments');
             default:                 return status || '-';
         }
     };

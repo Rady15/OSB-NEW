@@ -43,7 +43,7 @@ const Employees = () => {
                     tasksCompleted: u.tasksCompleted || 0,
                     tasksPending: u.tasksPending || 0,
                     rating: u.rating || 5.0,
-                    status: u.isSuspended ? 'inactive' : (u.status || 'active'),
+                    status: u.isActive === false ? 'inactive' : (u.status || 'active'),
                     joinDate: u.createdAt ? u.createdAt.split('T')[0] : '—',
                 }));
                 setEmployeesList(formatted);

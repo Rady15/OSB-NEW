@@ -40,7 +40,7 @@ const Companies = () => {
                 type: u.role || 'عميل',
                 registrationNumber: u.phoneNumber || '1010XXXXXX',
                 taxNumber: u.taxNumber || '300XXXXXXXXXXXX',
-                status: u.isSuspended ? 'inactive' : 'active',
+                status: u.isActive === false ? 'inactive' : 'active',
                 registrationDate: u.createdAt?.split('T')[0] || '2026-01-01',
                 expiryDate: '2027-01-01',
                 phone: u.phoneNumber || '—',
@@ -261,7 +261,7 @@ const Companies = () => {
         authAPI.getAllStaff()
             .then(d => {
                 const arr = Array.isArray(d) ? d : (d?.users || []);
-                setStaffOptions(arr.map(s => ({ id: s.userName, label: `${s.fullName || s.userName} (${s.email || s.userName})` })));
+                setStaffOptions(arr.map(s => ({ id: s.id || s.userName, label: `${s.userName} (${s.email || s.userName})` })));
             })
             .catch(() => setStaffOptions([]));
     }, [user]);

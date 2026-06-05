@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { servicesAPI, authAPI } from '../services/api';
+import { servicesAPI, authAPI, serverStatusToDisplay, displayToServerStatus, normalizeStatus } from '../services/api';
 import {
     FileText,
     Search,
@@ -49,7 +49,7 @@ const Transactions = () => {
                         id: item.requestId || item.id || item.serviceId || `TR-${Date.now()}`,
                         company: item.userId || item.companyName || item.userName || item.clientName || '—',
                         type: item.serviceType || item.type || item.serviceName || 'commercialRegistration',
-                        status: (item.status || 'pending').toLowerCase(),
+                        status: serverStatusToDisplay(item.status) || 'pending',
                         priority: (item.priority || 'medium').toLowerCase(),
                         assignedTo: item.assignedEmployeeUserId || item.assignedTo || item.employeeName || '—',
                         createdDate: item.createdAt ? item.createdAt.split('T')[0] : '—',
@@ -80,7 +80,7 @@ const Transactions = () => {
                 const staffData = await authAPI.getAllStaff();
                 const staffArr = Array.isArray(staffData) ? staffData : staffData.users || [];
                 setEmployeesList(staffArr.map(s => ({
-                    id: s.userName,
+                    id: s.id || s.userName,
                     userName: s.userName,
                     fullName: s.fullName || s.userName,
                     email: s.email,
@@ -115,19 +115,17 @@ const Transactions = () => {
 
     const getStatusBadge = (status) => {
         const config = {
-            // Lowercase (internal/legacy)
-            completed:   { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle,  label: 'completed' },
-            pending:     { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         icon: Clock,        label: 'pending'   },
-            processing:  { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle,  label: 'processing' },
-            cancelled:   { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,      label: 'cancelled' },
-            // API PascalCase values
-            waitingforpayment: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: Clock,        label: 'waitingForPayment' },
-            inprogress:        { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',         icon: AlertCircle,  label: 'inProgress' },
-            approved:          { color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',         icon: CheckCircle,  label: 'approved' },
-            rejected:          { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',             icon: XCircle,      label: 'rejected' },
-            onhold:            { color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: AlertCircle,  label: 'onHold' },
+            // Keys produced by serverStatusToDisplay() — all lower-case,
+            // no spaces / underscores / hyphens.
+            completed:       { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', icon: CheckCircle, label: 'completed' },
+            pending:         { color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',         icon: Clock,       label: 'pending' },
+            inprogress:      { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',             icon: AlertCircle, label: 'inProgress' },
+            waitingpayment:  { color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',     icon: Clock,       label: 'waitingPayment' },
+            paid:            { color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',             icon: DollarSign,  label: 'paid' },
+            cancelled:       { color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',                 icon: XCircle,     label: 'cancelled' },
+            missingdocuments:{ color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',     icon: AlertCircle, label: 'missingDocuments' },
         };
-        const key = (status || '').toLowerCase().replace(/[\s_-]/g, '');
+        const key = normalizeStatus(status);
         const entry = config[key] || config.pending;
         const { color, icon: Icon, label } = entry;
         return (
@@ -184,7 +182,6 @@ const Transactions = () => {
                 quotedAmount: 0,
                 quoteSent: false,
                 quoteDate: '',
-                attachments: [],
                 ...tx,
                 attachments: Array.isArray(tx.attachments) ? tx.attachments : [],
             });
@@ -304,11 +301,14 @@ const Transactions = () => {
             const tasks = [];
             const results = [];
 
-            const newStatus = (formData.status || '').toLowerCase();
-            const oldStatus = (selectedTransaction.status || '').toLowerCase();
+            // Convert display status (e.g. "inProgress") to server enum string
+            // (e.g. "InProgress") before sending.
+            const newStatus = normalizeStatus(formData.status);
+            const oldStatus = normalizeStatus(selectedTransaction.status);
             if (newStatus && newStatus !== oldStatus) {
+                const serverStatus = displayToServerStatus(newStatus);
                 tasks.push(
-                    servicesAPI.updateStatus(requestId, formData.status)
+                    servicesAPI.updateStatus(requestId, serverStatus)
                         .then((d) => results.push({ kind: 'status', ok: true, data: d }))
                         .catch((e) => results.push({ kind: 'status', ok: false, error: e }))
                 );
@@ -410,8 +410,7 @@ const Transactions = () => {
         const matchesSearch = tx.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
             tx.company.includes(searchQuery);
         const matchesStatus = statusFilter === 'all' ||
-            (tx.status || '').toLowerCase().replace(/[\s_-]/g, '') ===
-            statusFilter.toLowerCase().replace(/[\s_-]/g, '');
+            normalizeStatus(tx.status) === normalizeStatus(statusFilter);
         const matchesType = typeFilter === 'all' || tx.type === typeFilter;
         
         // If user is an employee, only show transactions assigned to them
@@ -445,11 +444,11 @@ const Transactions = () => {
             {/* Stats Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
-                    { label: 'pending',            match: ['pending'],            value: transactionsList.filter(t => ['pending'].includes(t.status)).length.toString(),            color: 'from-amber-500 to-amber-600',     icon: Clock },
-                    { label: 'processing',         match: ['processing', 'inprogress'], value: transactionsList.filter(t => ['processing', 'inprogress'].includes(t.status)).length.toString(), color: 'from-blue-500 to-blue-600',   icon: AlertCircle },
-                    { label: 'waitingPayment',     match: ['waitingpayment'],     value: transactionsList.filter(t => ['waitingpayment'].includes(t.status)).length.toString(),     color: 'from-purple-500 to-purple-600', icon: DollarSign },
-                    { label: 'completed',          match: ['completed'],          value: transactionsList.filter(t => ['completed'].includes(t.status)).length.toString(),          color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
-                    { label: 'rejected',           match: ['rejected', 'cancelled'], value: transactionsList.filter(t => ['rejected', 'cancelled'].includes(t.status)).length.toString(), color: 'from-red-500 to-red-600',   icon: XCircle },
+                    { label: 'pending',         match: ['pending'],                         value: transactionsList.filter(t => normalizeStatus(t.status) === 'pending').length.toString(),         color: 'from-amber-500 to-amber-600',     icon: Clock },
+                    { label: 'inProgress',      match: ['inprogress', 'processing'],         value: transactionsList.filter(t => ['inprogress', 'processing'].includes(normalizeStatus(t.status))).length.toString(), color: 'from-blue-500 to-blue-600',   icon: AlertCircle },
+                    { label: 'waitingPayment',  match: ['waitingpayment'],                  value: transactionsList.filter(t => normalizeStatus(t.status) === 'waitingpayment').length.toString(),  color: 'from-purple-500 to-purple-600', icon: DollarSign },
+                    { label: 'completed',       match: ['completed'],                       value: transactionsList.filter(t => normalizeStatus(t.status) === 'completed').length.toString(),       color: 'from-emerald-500 to-emerald-600', icon: CheckCircle },
+                    { label: 'cancelled',       match: ['cancelled', 'rejected'],            value: transactionsList.filter(t => ['cancelled', 'rejected'].includes(normalizeStatus(t.status))).length.toString(), color: 'from-red-500 to-red-600',   icon: XCircle },
                 ].map((stat, index) => {
                     const Icon = stat.icon;
                     return (
@@ -498,10 +497,12 @@ const Transactions = () => {
                                 >
                                     <option value="all">{isRTL ? 'جميع الحالات' : 'All Status'}</option>
                                     <option value="pending">{t('pending')}</option>
-                                    <option value="processing">{t('processing')}</option>
+                                    <option value="inProgress">{t('inProgress')}</option>
                                     <option value="waitingPayment">{t('waitingPayment')}</option>
                                     <option value="completed">{t('completed')}</option>
-                                    <option value="rejected">{t('rejected')}</option>
+                                    <option value="cancelled">{t('cancelled')}</option>
+                                    <option value="paid">{t('paid')}</option>
+                                    <option value="missingDocuments">{t('missingDocuments')}</option>
                                 </select>
                                 <Filter className={`w-4 h-4 text-dark-400 absolute top-1/2 -translate-y-1/2 ${isRTL ? 'left-3' : 'right-3'} pointer-events-none`} />
                             </div>
@@ -786,10 +787,12 @@ const Transactions = () => {
                                         className="input-field"
                                     >
                                         <option value="pending">{t('pending')}</option>
-                                        <option value="processing">{t('processing')}</option>
+                                        <option value="inProgress">{t('inProgress')}</option>
                                         <option value="waitingPayment">{t('waitingPayment')}</option>
                                         <option value="completed">{t('completed')}</option>
-                                        <option value="rejected">{t('rejected')}</option>
+                                        <option value="cancelled">{t('cancelled')}</option>
+                                        <option value="paid">{t('paid')}</option>
+                                        <option value="missingDocuments">{t('missingDocuments')}</option>
                                     </select>
                                 </div>
                             </div>
