@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { authAPI, servicesAPI } from '../services/api';
+import { authAPI, servicesAPI, documentsAPI } from '../services/api';
 import {
     Building2,
     Search,
@@ -27,29 +27,47 @@ const Companies = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [companiesList, setCompaniesList] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [docsByCompany, setDocsByCompany] = useState({});
 
     const fetchCompanies = async () => {
         setLoading(true);
         try {
-            const data = await authAPI.getAllUsers();
+            const [data, rawDocs] = await Promise.all([
+                authAPI.getAllUsers(),
+                documentsAPI.getAllCompaniesDocuments()
+                    .then(d => documentsAPI.groupByCompany(d))
+                    .catch(err => {
+                        console.warn('documents fetch failed:', err?.message || err);
+                        return [];
+                    })
+            ]);
+            const docsMap = {};
+            for (const g of rawDocs) {
+                docsMap[String(g.companyId)] = g.documents;
+            }
+            setDocsByCompany(docsMap);
             // Map api users to company schema
-            const formatted = (Array.isArray(data) ? data : data.users || []).map(u => ({
-                id: u.id || u.userName,
-                name: u.fullName || u.userName || 'مستخدم بدون اسم',
-                nameEn: u.userName || 'User',
-                type: u.role || 'عميل',
-                registrationNumber: u.phoneNumber || '1010XXXXXX',
-                taxNumber: u.taxNumber || '300XXXXXXXXXXXX',
-                status: u.isActive === false ? 'inactive' : 'active',
-                registrationDate: u.createdAt?.split('T')[0] || '2026-01-01',
-                expiryDate: '2027-01-01',
-                phone: u.phoneNumber || '—',
-                email: u.email || '—',
-                address: u.address || 'الرياض',
-                documents: u.documents || [
-                    { id: 1, name: 'السجل التجاري', number: u.phoneNumber || '1010XXXXXX', issueDate: '2025-05-15', expiryDate: '2027-05-15', fileUrl: '#' }
-                ]
-            }));
+            const formatted = (Array.isArray(data) ? data : data.users || []).map(u => {
+                const id = u.id || u.userName;
+                const realDocs = docsMap[String(id)] || docsMap[String(u.userName)] || [];
+                return {
+                    id,
+                    name: u.fullName || u.userName || 'مستخدم بدون اسم',
+                    nameEn: u.userName || 'User',
+                    type: u.role || 'عميل',
+                    registrationNumber: u.phoneNumber || '1010XXXXXX',
+                    taxNumber: u.taxNumber || '300XXXXXXXXXXXX',
+                    status: u.isActive === false ? 'inactive' : 'active',
+                    registrationDate: u.createdAt?.split('T')[0] || '2026-01-01',
+                    expiryDate: '2027-01-01',
+                    phone: u.phoneNumber || '—',
+                    email: u.email || '—',
+                    address: u.address || 'الرياض',
+                    documents: realDocs.length > 0 ? realDocs : (u.documents || [
+                        { id: 1, name: 'السجل التجاري', number: u.phoneNumber || '1010XXXXXX', issueDate: '2025-05-15', expiryDate: '2027-05-15', fileUrl: '#' }
+                    ])
+                };
+            });
             setCompaniesList(formatted);
         } catch (error) {
             console.error('Error fetching companies:', error);

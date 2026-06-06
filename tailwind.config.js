@@ -8,6 +8,7 @@ export default {
     theme: {
         extend: {
             fontFamily: {
+                'zain': ['Zain', 'sans-serif'],
                 'tajawal': ['Tajawal', 'sans-serif'],
                 'inter': ['Inter', 'sans-serif'],
             },

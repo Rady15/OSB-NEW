@@ -106,13 +106,17 @@
   }
 }
 
+html, body, #root {
+  font-family: 'Zain', sans-serif;
+}
+
 /* RTL Specific Styles */
 [dir="rtl"] {
-  font-family: 'Tajawal', sans-serif;
+  font-family: 'Zain', sans-serif;
 }
 
 [dir="ltr"] {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Zain', sans-serif;
 }
 
 /* Animations */

@@ -1,0 +1,22 @@
+node_modules
+dist
+.env.local
+.env.*.local
+
+# OS / shell accidents
+echo
+nul
+.DS_Store
+Thumbs.db
+
+# .NET backend (not part of this admin-dashboard repo)
+ACHF.Solution/
+ACHF.Solution.rar
+Responsive-Login-Page-Using-HTML-CSS-JavaScript-master/
+Responsive-Login-Page-Using-HTML-CSS-JavaScript-master.zip
+
+# IDE
+.vs/
+.idea/
+*.suo
+*.user

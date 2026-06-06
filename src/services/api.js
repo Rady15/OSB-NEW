@@ -213,6 +213,45 @@ export const servicesAPI = {
     }
 };
 
+export const documentsAPI = {
+    // GET /CompanyDocuments/admin/all-companies
+    // Returns a flat list of every company document on the platform.
+    // Each item is expected to carry a companyId / companyUserId / userId
+    // (and ideally a companyName) so it can be grouped per company.
+    getAllCompaniesDocuments: async () => {
+        const response = await api.get('/CompanyDocuments/admin/all-companies');
+        return response.data;
+    },
+
+    // Group a flat list of documents by company id.
+    // Accepts the response from getAllCompaniesDocuments() and returns
+    // an array of { companyId, companyName, documents: [...] } groups.
+    groupByCompany: (raw) => {
+        const list = Array.isArray(raw)
+            ? raw
+            : (raw?.documents || raw?.data || raw?.items || raw?.companies || []);
+        const groups = new Map();
+        for (const item of list) {
+            const id = item.companyId ?? item.companyUserId ?? item.userId ?? item.ownerId ?? 'unknown';
+            const name = item.companyName ?? item.company ?? item.userName ?? null;
+            if (!groups.has(id)) {
+                groups.set(id, { companyId: id, companyName: name, documents: [] });
+            }
+            const g = groups.get(id);
+            if (!g.companyName && name) g.companyName = name;
+            g.documents.push({
+                id: item.id ?? item.documentId ?? item.docId ?? null,
+                name: item.name ?? item.documentName ?? item.docName ?? item.type ?? item.title ?? '—',
+                number: item.number ?? item.documentNumber ?? item.docNumber ?? '—',
+                issueDate: (item.issueDate ?? item.issuedAt ?? '').toString().split('T')[0] || '—',
+                expiryDate: (item.expiryDate ?? item.expiresAt ?? '').toString().split('T')[0] || '—',
+                fileUrl: item.fileUrl ?? item.url ?? item.path ?? '#'
+            });
+        }
+        return Array.from(groups.values());
+    }
+};
+
 // ---------------------------------------------------------------------------
 // Status helpers — bridge between the server enum
 // (Pending, InProgress, Completed, Cancelled, WaitingForPayment, Paid,
