@@ -65,11 +65,11 @@ const Reports = () => {
         load();
     }, []);
 
-    // Employees only see their own assigned items
+    // Employees only see their own items
     const scopedRequests = useMemo(() => {
         if (user?.role === 'admin') return allRequests;
         const myId = user?.id || user?.name;
-        return allRequests.filter(r => r.assignedEmployeeUserId === myId);
+        return allRequests.filter(r => r.appUserId === myId);
     }, [allRequests, user]);
 
     const norm = (s) => (s || '').toString().toLowerCase().replace(/[\s_-]/g, '');
@@ -93,8 +93,8 @@ const Reports = () => {
         const total = filtered.length;
         const completed = filtered.filter(r => norm(r.status) === 'completed').length;
         const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
-        const revenue = filtered.reduce((acc, r) => acc + (Number(r.price) || 0), 0);
-        const uniqueCompanies = new Set(filtered.map(r => r.userId).filter(Boolean)).size;
+        const revenue = 0;
+        const uniqueCompanies = new Set(filtered.map(r => r.appUserId).filter(Boolean)).size;
         return [
             { label: isRTL ? 'إجمالي المعاملات' : 'Total Transactions', value: total.toLocaleString(), icon: FileText, color: 'from-blue-500 to-blue-600' },
             { label: isRTL ? 'الشركات المشاركة' : 'Companies', value: uniqueCompanies.toLocaleString(), icon: Building2, color: 'from-emerald-500 to-emerald-600' },
@@ -126,7 +126,7 @@ const Reports = () => {
     const serviceDistribution = useMemo(() => {
         const counts = {};
         for (const r of filtered) {
-            const k = r.serviceType || 'Other';
+            const k = r.serviceNameAr || r.categoryNameAr || 'Other';
             counts[k] = (counts[k] || 0) + 1;
         }
         return Object.entries(counts)
@@ -143,21 +143,18 @@ const Reports = () => {
             : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         for (const r of filtered) {
             if (!r.createdAt) continue;
-            const price = Number(r.price) || 0;
-            if (price === 0) continue;
             const d = new Date(r.createdAt);
             const key = `${d.getFullYear()}-${d.getMonth()}`;
             if (!buckets[key]) buckets[key] = { month: labels[d.getMonth()], revenue: 0, _sort: d.getTime() };
-            buckets[key].revenue += price;
         }
         return Object.values(buckets).sort((a, b) => a._sort - b._sort).slice(-6).map(({ _sort, ...rest }) => rest);
     }, [filtered, isRTL]);
 
-    // Top performers
+    // Top performers (by request count)
     const topPerformers = useMemo(() => {
         const counts = {};
         for (const r of allRequests) {
-            const id = r.assignedEmployeeUserId;
+            const id = r.appUserId;
             if (!id) continue;
             if (!counts[id]) counts[id] = { tasks: 0, completed: 0 };
             counts[id].tasks++;

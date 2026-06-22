@@ -158,34 +158,46 @@ const Employees = () => {
             handleCloseModal();
 
             const userName = selectedEmployee.id || selectedEmployee.nameEn;
+            const tasks = [];
+
+            // Always persist employee detail changes
+            tasks.push(
+                authAPI.updateEmployee(userName, {
+                    fullName: formData.name,
+                    userName: formData.nameEn,
+                    email: formData.email,
+                    phoneNumber: formData.phone,
+                    department: formData.department,
+                    position: formData.position,
+                })
+            );
+
+            // If status changed, also suspend/unsuspend
             const newStatus = formData.status;
             const oldStatus = selectedEmployee.status;
             if (newStatus !== oldStatus) {
-                try {
-                    if (newStatus === 'inactive') {
-                        await authAPI.suspendUser(userName);
-                    } else if (newStatus === 'active') {
-                        await authAPI.unsuspendUser(userName);
-                    }
-                    addNotification(
-                        isRTL
-                            ? `تم تحديث حالة الموظف: ${formData.name}`
-                            : `Employee status updated: ${formData.name}`,
-                        'success'
-                    );
-                } catch (err) {
-                    setEmployeesList(previous);
-                    const apiMsg = err?.response?.data?.message || err?.response?.data || err?.message;
-                    addNotification(
-                        (isRTL ? 'فشل تحديث الحالة: ' : 'Failed to update status: ') +
-                        (typeof apiMsg === 'string' ? apiMsg : 'server error'),
-                        'danger'
-                    );
+                if (newStatus === 'inactive') {
+                    tasks.push(authAPI.suspendUser(userName));
+                } else if (newStatus === 'active') {
+                    tasks.push(authAPI.unsuspendUser(userName));
                 }
-            } else {
+            }
+
+            try {
+                await Promise.all(tasks);
                 addNotification(
-                    isRTL ? `تم تعديل بيانات الموظف: ${formData.name}` : `Employee updated: ${formData.name}`,
-                    'info'
+                    isRTL
+                        ? `تم تحديث بيانات الموظف: ${formData.name}`
+                        : `Employee updated: ${formData.name}`,
+                    'success'
+                );
+            } catch (err) {
+                setEmployeesList(previous);
+                const apiMsg = err?.response?.data?.message || err?.response?.data || err?.message;
+                addNotification(
+                    (isRTL ? 'فشل تحديث بيانات الموظف: ' : 'Failed to update employee: ') +
+                    (typeof apiMsg === 'string' ? apiMsg : 'server error'),
+                    'danger'
                 );
             }
         } else {

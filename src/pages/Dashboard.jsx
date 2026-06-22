@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { servicesAPI, normalizeStatus } from '../services/api';
+import { servicesAPI, dashboardAPI, normalizeStatus } from '../services/api';
 import { SkeletonCard, SkeletonTable } from '../components/Skeleton';
 import {
     Building2,
@@ -15,7 +15,10 @@ import {
     RefreshCw,
     Calendar,
     DollarSign,
-    AlertCircle
+    AlertCircle,
+    Users,
+    Layers,
+    ShieldCheck
 } from 'lucide-react';
 import {
     AreaChart,
@@ -33,6 +36,19 @@ import {
     Legend
 } from 'recharts';
 
+function extractCount(data, ...keys) {
+    if (!data) return 0;
+    for (const key of keys) {
+        const v = data[key];
+        if (typeof v === 'number') return v;
+    }
+    if (typeof data === 'number') return data;
+    if (typeof data?.total === 'number') return data.total;
+    if (typeof data?.count === 'number') return data.count;
+    if (Array.isArray(data)) return data.length;
+    return 0;
+}
+
 const Dashboard = () => {
     const { t, isRTL, isDark } = useApp();
     const [stats, setStats] = useState([]);
@@ -46,34 +62,43 @@ const Dashboard = () => {
         const controller = new AbortController();
         const fetchData = async () => {
             try {
-                // Clear any previous error
                 setFetchError(null);
-                // Build dashboard stats from real /UserServices/all data
-                const allData = await servicesAPI.getAllRequests({ signal: controller.signal });
-                const all = Array.isArray(allData) ? allData : allData.requests || allData.services || [];
 
-                // Normalize status via the shared helper so all pages agree
-                // on bucket names. Server enum: Pending, InProgress, Completed,
-                // Cancelled, WaitingForPayment, Paid, MissingDocuments
-                const pending         = all.filter(i => normalizeStatus(i.status) === 'pending').length;
-                const inProgress      = all.filter(i => ['inprogress', 'processing', 'active'].includes(normalizeStatus(i.status))).length;
-                const waitingPayment  = all.filter(i => normalizeStatus(i.status) === 'waitingpayment').length;
-                const completed       = all.filter(i => normalizeStatus(i.status) === 'completed').length;
-                const cancelled       = all.filter(i => ['cancelled', 'rejected'].includes(normalizeStatus(i.status))).length;
-                const paid           = all.filter(i => normalizeStatus(i.status) === 'paid').length;
-                const missingDocs    = all.filter(i => normalizeStatus(i.status) === 'missingdocuments').length;
-                const total          = all.length;
-
-                setStats([
-                    { label: 'totalTransactions', value: total.toString(),             gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',         shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',         trend: 'up', change: '', icon: Building2 },
-                    { label: 'pending',            value: pending.toString(),           gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',       shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',       trend: 'up', change: '', icon: Clock },
-                    { label: 'inProgress',         value: inProgress.toString(),        gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',     shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',     trend: 'up', change: '', icon: TrendingUp },
-                    { label: 'completed',          value: completed.toString(),         gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',  shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30',  trend: 'up', change: '', icon: CheckCircle },
+                const [usersRaw, companiesRaw, servicesRaw, documentsRaw, requestsRaw, allData] = await Promise.all([
+                    dashboardAPI.getUsersStats().catch(() => ({})),
+                    dashboardAPI.getCompaniesStats().catch(() => ({})),
+                    dashboardAPI.getServicesStats().catch(() => ({})),
+                    dashboardAPI.getDocumentsStats().catch(() => ({})),
+                    dashboardAPI.getRequestsStats().catch(() => ({})),
+                    servicesAPI.getAllRequests({ signal: controller.signal }).catch(() => []),
                 ]);
 
-                // Build monthly chart data: always show the last 7 months (current
-                // month + previous 6) so the area chart has a visible shape even
-                // when the database is empty. Months with no data render at 0.
+                const all = Array.isArray(allData) ? allData : (allData?.requests || allData?.services || []);
+
+                // Extract counts from dashboard endpoints
+                const usersCount     = extractCount(usersRaw, 'totalUsers', 'total', 'count', 'users');
+                const companiesCount = extractCount(companiesRaw, 'totalCompanies', 'total', 'count', 'companies');
+                const servicesCount  = extractCount(servicesRaw, 'totalServices', 'total', 'count', 'services');
+                const docsCount      = extractCount(documentsRaw, 'totalDocuments', 'total', 'count', 'documents');
+                const reqTotal       = extractCount(requestsRaw, 'totalRequests', 'total', 'count', 'requests');
+                const reqPending     = extractCount(requestsRaw, 'pending', 'pendingCount');
+                const reqCompleted   = extractCount(requestsRaw, 'completed', 'completedCount');
+
+                // Fallback: compute from the requests list if dashboard endpoint didn't return numbers
+                const pending    = reqPending    || all.filter(i => normalizeStatus(i.status) === 'pending').length;
+                const completed  = reqCompleted  || all.filter(i => normalizeStatus(i.status) === 'completed').length;
+                const totalReqs  = reqTotal      || all.length;
+
+                setStats([
+                    { label: 'totalUsers',       value: usersCount.toString(),     gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',       shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',       trend: 'up', change: '', icon: Users },
+                    { label: 'totalCompanies',   value: companiesCount.toString(), gradient: 'bg-gradient-to-br from-purple-500 to-purple-600',   shadowColor: 'shadow-purple-200 dark:shadow-purple-900/30',   trend: 'up', change: '', icon: Building2 },
+                    { label: 'totalServices',    value: servicesCount.toString(),  gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',  shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',   trend: 'up', change: '', icon: Layers },
+                    { label: 'totalDocuments',   value: docsCount.toString(),      gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',    shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',     trend: 'up', change: '', icon: FileText },
+                    { label: 'pending',          value: pending.toString(),        gradient: 'bg-gradient-to-br from-orange-500 to-orange-600',  shadowColor: 'shadow-orange-200 dark:shadow-orange-900/30',   trend: 'up', change: '', icon: Clock },
+                    { label: 'completed',        value: completed.toString(),      gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30', trend: 'up', change: '', icon: ShieldCheck },
+                ]);
+
+                // Monthly chart from requests list
                 const monthMap = {};
                 all.forEach(item => {
                     if (item.createdAt) {
@@ -96,34 +121,34 @@ const Dashboard = () => {
                 }
                 setMonthlyData(monthly);
 
-                // Build pie chart data from service types
+                // Pie chart from service types (respect current language)
                 const typeMap = {};
                 all.forEach(item => {
-                    const key = item.serviceType || item.type || item.serviceName || 'أخرى';
+                    const key = isRTL
+                        ? (item.serviceNameAr || item.categoryNameAr || 'أخرى')
+                        : (item.serviceNameEn || item.categoryNameEn || 'Other');
                     typeMap[key] = (typeMap[key] || 0) + 1;
                 });
                 const colors = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#6366f1'];
+                const pieTotal = all.length || totalReqs || 1;
                 const pie = Object.entries(typeMap).slice(0, 6).map(([name, value], i) => ({
                     name,
-                    value: total > 0 ? Math.round((value / total) * 100) : 0,
+                    value: pieTotal > 0 ? Math.round((value / pieTotal) * 100) : 0,
                     color: colors[i % colors.length],
                 }));
                 setPieData(pie);
 
                 // Recent 5 transactions
                 const recent = all.slice(0, 5).map(item => ({
-                    id: item.requestId || item.id || item.serviceId || '-',
-                    company: item.companyName || item.userName || item.clientName || item.userId || '-',
-                    type: item.serviceType || item.type || item.serviceName || '-',
+                    id: item.id || '-',
+                    serviceName: item.serviceNameAr || item.serviceNameEn || '-',
                     status: normalizeStatus(item.status) || 'pending',
-                    date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-',
+                    date: item.createdAt && item.createdAt !== '0001-01-01T00:00:00'
+                        ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-',
                 }));
                 setRecentTransactions(recent);
             } catch (err) {
-                // Ignore aborted requests (e.g. StrictMode double-mount or unmount)
-                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
-                    return;
-                }
+                if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
                 console.error('Error fetching dashboard data', err);
                 const status = err?.response?.status;
                 setFetchError({
@@ -134,15 +159,12 @@ const Dashboard = () => {
                             ? (isRTL ? 'انتهت الجلسة، يرجى تسجيل الدخول' : 'Session expired, please log in again')
                             : (isRTL ? 'تعذّر تحميل البيانات' : 'Failed to load data'),
                 });
-                // Show empty dashboard on error rather than crashing
                 setStats([]);
                 setMonthlyData([]);
                 setPieData([]);
                 setRecentTransactions([]);
             } finally {
-                if (!controller.signal.aborted) {
-                    setLoading(false);
-                }
+                if (!controller.signal.aborted) setLoading(false);
             }
         };
         fetchData();
@@ -244,9 +266,11 @@ const Dashboard = () => {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
                 {loading ? (
                     <>
+                        <SkeletonCard />
+                        <SkeletonCard />
                         <SkeletonCard />
                         <SkeletonCard />
                         <SkeletonCard />
@@ -421,10 +445,7 @@ const Dashboard = () => {
                                         {t('transactionId')}
                                     </th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase tracking-wider min-w-[140px]">
-                                        {t('company')}
-                                    </th>
-                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase tracking-wider min-w-[120px]">
-                                        {t('transactionType')}
+                                        {t('service')}
                                     </th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase tracking-wider min-w-[100px]">
                                         {t('status')}
@@ -444,10 +465,7 @@ const Dashboard = () => {
                                             <span className="font-mono text-sm text-primary-500">{transaction.id}</span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
-                                            <span className="text-dark-700 dark:text-dark-200">{transaction.company}</span>
-                                        </td>
-                                        <td className="px-4 py-3 whitespace-nowrap">
-                                            <span className="text-dark-600 dark:text-dark-300">{transaction.type}</span>
+                                            <span className="text-dark-700 dark:text-dark-200">{transaction.serviceName}</span>
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(transaction.status)}`}>

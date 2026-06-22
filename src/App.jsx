@@ -12,6 +12,7 @@ const Companies = lazy(() => import('./pages/Companies'));
 const Transactions = lazy(() => import('./pages/Transactions'));
 const Services = lazy(() => import('./pages/Services'));
 const Employees = lazy(() => import('./pages/Employees'));
+const Users = lazy(() => import('./pages/Users'));
 const Reports = lazy(() => import('./pages/Reports'));
 const Settings = lazy(() => import('./pages/Settings'));
 const EmployeePermissionsPage = lazy(() => import('./pages/EmployeePermissions'));
@@ -90,6 +91,11 @@ function App() {
                             <Route path="employees" element={
                                 <Suspense fallback={<PageLoader />}>
                                     <Employees />
+                                </Suspense>
+                            } />
+                            <Route path="users" element={
+                                <Suspense fallback={<PageLoader />}>
+                                    <Users />
                                 </Suspense>
                             } />
                             <Route path="reports" element={

@@ -7,6 +7,7 @@ import {
     FileText,
     Briefcase,
     Users,
+    Users2,
     UserCog,
     BarChart3,
     Settings,
@@ -29,6 +30,7 @@ const Sidebar = () => {
         { path: '/transactions', icon: FileText, label: 'transactions' },
         { path: '/services', icon: Briefcase, label: 'services' },
         { path: '/employees', icon: UserCog, label: 'employees', adminOnly: true },
+        { path: '/users', icon: Users2, label: 'users', adminOnly: true },
         { path: '/reports', icon: BarChart3, label: 'reports' },
         { path: '/settings', icon: Settings, label: 'settings' },
     ];

@@ -103,15 +103,30 @@ export const AuthProvider = ({ children }) => {
             // Attempt API Login
             const data = await authAPI.login(email, password);
 
-            // Resolve role from API response. The backend returns `roles: ["Staff"]`
-            // (array) for employees, or a string `role` for admins.
-            const rolesArr = Array.isArray(data.roles) ? data.roles : [];
-            const firstRole = (data.role || rolesArr[0] || '').toString().toLowerCase();
-            const isAdmin = firstRole === 'admin';
+            // Decode JWT to extract claims (role, id)
+            const token = data?.token || data?.accessToken;
+            let role = 'employee';
+            let userId = '';
+            let userName = '';
+
+            if (token) {
+                try {
+                    const parts = token.split('.');
+                    if (parts.length === 3) {
+                        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        const roleClaim = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+                        role = roleClaim ? roleClaim.toLowerCase() : 'employee';
+                        userId = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || '';
+                        userName = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || '';
+                    }
+                } catch { /* ignore decode errors */ }
+            }
+
+            const isAdmin = role === 'admin';
 
             const userObj = {
-                id: data.id || data.userName || data.email || email,
-                name: data.userName || data.fullName || email.split('@')[0],
+                id: userId || data.email || email,
+                name: data.displayName || userName || data.email?.split('@')[0] || email.split('@')[0],
                 email: data.email || email,
                 role: isAdmin ? 'admin' : 'employee',
                 permissions: isAdmin

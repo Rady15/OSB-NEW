@@ -83,7 +83,10 @@ export const translations = {
         // Dashboard
         dashboardTitle: 'لوحة التحكم الرئيسية',
         dashboardSubtitle: 'مرحباً بك في نظام إدارة معاملات الشركات',
+        totalUsers: 'إجمالي المستخدمين',
         totalCompanies: 'إجمالي الشركات',
+        totalServices: 'إجمالي الخدمات',
+        totalDocuments: 'إجمالي المستندات',
         activeTransactions: 'المعاملات النشطة',
         completedTransactions: 'المعاملات المكتملة',
         pendingTransactions: 'المعاملات المعلقة',
@@ -304,7 +307,10 @@ export const translations = {
         // Dashboard
         dashboardTitle: 'Main Dashboard',
         dashboardSubtitle: 'Welcome to the Company Transaction Management System',
+        totalUsers: 'Total Users',
         totalCompanies: 'Total Companies',
+        totalServices: 'Total Services',
+        totalDocuments: 'Total Documents',
         activeTransactions: 'Active Transactions',
         completedTransactions: 'Completed Transactions',
         pendingTransactions: 'Pending Transactions',

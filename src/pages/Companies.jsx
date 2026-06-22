@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
-import { authAPI, servicesAPI, documentsAPI } from '../services/api';
+import { authAPI, servicesAPI, documentsAPI, dashboardAPI } from '../services/api';
 import {
     Building2,
     Search,
@@ -32,49 +32,57 @@ const Companies = () => {
     const fetchCompanies = async () => {
         setLoading(true);
         try {
-            const [data, rawDocs] = await Promise.all([
-                authAPI.getAllUsers(),
-                documentsAPI.getAllCompaniesDocuments()
-                    .then(d => documentsAPI.groupByCompany(d))
-                    .catch(err => {
-                        console.warn('documents fetch failed:', err?.message || err);
-                        return [];
-                    })
+            const [data, docGroups] = await Promise.all([
+                dashboardAPI.getCompaniesStats(),
+                documentsAPI.getAdminAllDocuments().catch(() => [])
             ]);
+            // /api/documents/admin/all returns [{ userId, userName, email, totalDocuments, documents: [...] }]
             const docsMap = {};
-            for (const g of rawDocs) {
-                docsMap[String(g.companyId)] = g.documents;
+            const list = Array.isArray(docGroups) ? docGroups : [];
+            for (const g of list) {
+                const uid = String(g.userId);
+                docsMap[uid] = (g.documents || []).map(d => ({
+                    id: d.id,
+                    name: d.documentName || d.documentType || '—',
+                    number: d.referenceNumber || '—',
+                    issueDate: (d.issueDate || '').split('T')[0] || '—',
+                    expiryDate: (d.expiryDate || '').split('T')[0] || '—',
+                    fileUrl: d.fileUrl || '#',
+                }));
             }
             setDocsByCompany(docsMap);
-            // Map api users to company schema
-            const formatted = (Array.isArray(data) ? data : data.users || []).map(u => {
-                const id = u.id || u.userName;
-                const realDocs = docsMap[String(id)] || docsMap[String(u.userName)] || [];
-                return {
-                    id,
-                    name: u.fullName || u.userName || 'مستخدم بدون اسم',
-                    nameEn: u.userName || 'User',
-                    type: u.role || 'عميل',
-                    registrationNumber: u.phoneNumber || '1010XXXXXX',
-                    taxNumber: u.taxNumber || '300XXXXXXXXXXXX',
-                    status: u.isActive === false ? 'inactive' : 'active',
-                    registrationDate: u.createdAt?.split('T')[0] || '2026-01-01',
-                    expiryDate: '2027-01-01',
-                    phone: u.phoneNumber || '—',
-                    email: u.email || '—',
-                    address: u.address || 'الرياض',
-                    documents: realDocs.length > 0 ? realDocs : (u.documents || [
-                        { id: 1, name: 'السجل التجاري', number: u.phoneNumber || '1010XXXXXX', issueDate: '2025-05-15', expiryDate: '2027-05-15', fileUrl: '#' }
-                    ])
-                };
-            });
+            const companies = Array.isArray(data)
+                ? data : (data?.companies || data?.data || []);
+            const formatted = companies.map(c => ({
+                id: c.id || c.userId,
+                userId: c.userId,
+                name: c.nameAr || c.userName || '—',
+                nameEn: c.nameEn || c.userName || '—',
+                type: c.companyType || c.entityType || '—',
+                registrationNumber: c.commercialRegisterNumber || '—',
+                taxNumber: c.zakatTaxNumber || c.vatNumber || '—',
+                capital: c.capital,
+                status: 'active',
+                registrationDate: c.commercialRegisterIssueDate?.split('T')[0] || '—',
+                expiryDate: c.commercialRegisterExpiryDate?.split('T')[0] || '—',
+                phone: c.phone || '—',
+                email: c.email || c.userEmail || '—',
+                address: c.address || c.city || '—',
+                unifiedNumber: c.unifiedNumber || '—',
+                nitaqatNumber: c.nitaqatNumber || '—',
+                laborOfficeNumber: c.laborOfficeNumber || '—',
+                activities: c.activities || [],
+                partners: c.partners || [],
+                managers: c.managers || [],
+                nationality: c.nationality || '—',
+                hasCommercialRegisterFile: c.hasCommercialRegisterFile,
+                hasGovernmentDocsFile: c.hasGovernmentDocsFile,
+                documents: docsMap[String(c.userId)] || docsMap[String(c.id)] || [],
+            }));
             setCompaniesList(formatted);
         } catch (error) {
             console.error('Error fetching companies:', error);
-            // Fallback mock if server fails
-            setCompaniesList([
-                { id: 1, name: 'شركة التقنية المتقدمة', nameEn: 'Advanced Tech', type: 'عميل', registrationNumber: '1010123456', taxNumber: '300123456789012', status: 'active', registrationDate: '2020-05-15', expiryDate: '2027-05-15', phone: '+966501234567', email: 'info@advtech.sa', address: 'الرياض، العليا', documents: [{ id: 1, name: 'السجل التجاري', number: '1010123456', issueDate: '2020-05-15', expiryDate: '2027-05-15', fileUrl: '#' }] }
-            ]);
+            setCompaniesList([]);
         } finally {
             setLoading(false);
         }
@@ -298,7 +306,8 @@ const Companies = () => {
         if (!assignModal.company || !assignEmployee) return;
         setAssignBusy(true);
         try {
-            const result = await servicesAPI.assignCompanyToEmployee(assignModal.company.id, assignEmployee);
+            const companyUserId = assignModal.company.userId || assignModal.company.id;
+            const result = await servicesAPI.assignCompanyToEmployee(companyUserId, assignEmployee);
             const ok = result.success;
             addNotification(
                 ok
@@ -648,6 +657,46 @@ const Companies = () => {
                                     </div>
                                 )}
                             </div>
+                                {formData.capital != null && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                            {isRTL ? 'رأس المال' : 'Capital'}
+                                        </label>
+                                        <input type="text" value={Number(formData.capital).toLocaleString()} disabled className="input-field" />
+                                    </div>
+                                )}
+                                {formData.nationality && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                            {isRTL ? 'الجنسية' : 'Nationality'}
+                                        </label>
+                                        <input type="text" value={formData.nationality} disabled className="input-field" />
+                                    </div>
+                                )}
+                                {formData.unifiedNumber && formData.unifiedNumber !== '—' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                            {isRTL ? 'الرقم الموحد' : 'Unified Number'}
+                                        </label>
+                                        <input type="text" value={formData.unifiedNumber} disabled className="input-field" />
+                                    </div>
+                                )}
+                                {formData.nitaqatNumber && formData.nitaqatNumber !== '—' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                            {isRTL ? 'رقم نطاقات' : 'Nitaqat Number'}
+                                        </label>
+                                        <input type="text" value={formData.nitaqatNumber} disabled className="input-field" />
+                                    </div>
+                                )}
+                                {formData.laborOfficeNumber && formData.laborOfficeNumber !== '—' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                            {isRTL ? 'رقم مكتب العمل' : 'Labor Office Number'}
+                                        </label>
+                                        <input type="text" value={formData.laborOfficeNumber} disabled className="input-field" />
+                                    </div>
+                                )}
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                     {t('address')}
@@ -662,6 +711,20 @@ const Companies = () => {
                                     placeholder={isRTL ? 'أدخل العنوان' : 'Enter address'}
                                 ></textarea>
                             </div>
+                            {formData.activities?.length > 0 && (
+                                <div>
+                                    <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                        {isRTL ? 'الأنشطة' : 'Activities'}
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {formData.activities.map((a, i) => (
+                                            <span key={i} className="px-3 py-1 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-medium">
+                                                {a}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Section: Company Documents & Expiry Tracking (Visible only in 'view' mode or editable if needed) */}
                             {modalMode === 'view' && (
@@ -712,11 +775,7 @@ const Companies = () => {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {(selectedCompany.documents || [
-                                            { id: 1, name: 'السجل التجاري', number: selectedCompany.registrationNumber, issueDate: '2020-05-15', expiryDate: selectedCompany.expiryDate, fileUrl: '#' },
-                                            { id: 2, name: 'رخصة البلدية', number: 'MUNI-98234', issueDate: '2021-06-20', expiryDate: '2026-06-20', fileUrl: '#' },
-                                            { id: 3, name: 'شهادة الغرفة التجارية', number: 'CC-33291', issueDate: '2022-02-10', expiryDate: '2025-02-10', fileUrl: '#' }
-                                        ]).map(doc => {
+                                        {(formData.documents || selectedCompany.documents || []).map(doc => {
                                             const daysRemaining = Math.ceil((new Date(doc.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
                                             const isExpired = daysRemaining < 0;
                                             const isExpiringSoon = daysRemaining >= 0 && daysRemaining <= 30;

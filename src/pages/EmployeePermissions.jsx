@@ -1,65 +1,51 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
+import { authAPI } from '../services/api';
 import EmployeePermissions from '../components/EmployeePermissions';
-import { Building2, Users, Settings, UserCog } from 'lucide-react';
+import { Building2, Users, Settings, UserCog, Loader2 } from 'lucide-react';
+
+const allPermissionsList = [
+    'view_dashboard', 'view_companies', 'view_transactions', 'view_services',
+    'view_users', 'view_employees', 'view_reports', 'view_settings',
+    'manage_transactions', 'manage_companies', 'manage_users', 'manage_employees',
+];
+
+const defaultEmployeePermissions = [
+    'view_dashboard', 'view_transactions', 'view_companies', 'view_services',
+];
 
 const EmployeePermissionsPage = () => {
     const { t, isRTL } = useApp();
     const { user } = useAuth();
-    
-    // Mock employee data - in a real app this would come from an API
-    const [employees, setEmployees] = useState([
-        {
-            id: 1,
-            name: 'أحمد محمد',
-            email: 'ahmed@example.com',
-            role: 'employee',
-            permissions: ['view_transactions', 'manage_transactions']
-        },
-        {
-            id: 2,
-            name: 'سارة أحمد',
-            email: 'sara@example.com',
-            role: 'employee',
-            permissions: ['view_companies', 'view_transactions']
-        },
-        {
-            id: 3,
-            name: 'محمد علي',
-            email: 'mohamed@example.com',
-            role: 'employee',
-            permissions: ['view_reports', 'view_settings']
-        },
-        {
-            id: 4,
-            name: 'فاطمة خالد',
-            email: 'fatima@example.com',
-            role: 'employee',
-            permissions: ['view_users', 'manage_users']
-        },
-        {
-            id: 5,
-            name: 'علي حسن',
-            email: 'ali@example.com',
-            role: 'employee',
-            permissions: ['view_employees', 'view_transactions']
-        },
-        {
-            id: 6,
-            name: 'نورة سعد',
-            email: 'noura@example.com',
-            role: 'employee',
-            permissions: ['view_services', 'view_transactions']
-        },
-        {
-            id: 7,
-            name: 'Admin User',
-            email: 'admin@example.com',
-            role: 'admin',
-            permissions: ['view_all', 'manage_all']
+    const [employees, setEmployees] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (user?.role !== 'admin') {
+            setLoading(false);
+            return;
         }
-    ]);
+        setLoading(true);
+        authAPI.getAllStaff()
+            .then(data => {
+                const list = Array.isArray(data) ? data : (data?.users || []);
+                const mapped = list.map(u => ({
+                    id: u.id || u.userName,
+                    name: u.fullName || u.userName || '—',
+                    email: u.email || '—',
+                    role: (u.role || 'employee').toLowerCase(),
+                    permissions: ((u.role || '').toLowerCase() === 'admin')
+                        ? [...allPermissionsList]
+                        : [...defaultEmployeePermissions],
+                }));
+                setEmployees(mapped);
+            })
+            .catch(() => {
+                setEmployees([]);
+            })
+            .finally(() => setLoading(false));
+    }, [user]);
 
     const updateEmployeePermissions = (employeeId, newPermissions) => {
         setEmployees(prev => 
@@ -105,8 +91,16 @@ const EmployeePermissionsPage = () => {
                 </div>
             </div>
 
+            {/* Loading */}
+            {loading && (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+                    <span className="mr-2 text-dark-500">{isRTL ? 'جاري التحميل...' : 'Loading...'}</span>
+                </div>
+            )}
+
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {!loading && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="card p-4 hover:shadow-lg transition-all duration-300 cursor-pointer group">
                     <div className="flex items-center justify-between">
                         <div>
@@ -170,10 +164,10 @@ const EmployeePermissionsPage = () => {
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>}
 
             {/* Employee Permissions Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {!loading && <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {filteredEmployees.map(employee => (
                     <EmployeePermissions
                         key={employee.id}
@@ -181,7 +175,7 @@ const EmployeePermissionsPage = () => {
                         onUpdatePermissions={updateEmployeePermissions}
                     />
                 ))}
-            </div>
+            </div>}
         </div>
     );
 };

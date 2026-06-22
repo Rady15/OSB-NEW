@@ -16,7 +16,6 @@ api.interceptors.request.use((config) => {
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
-    // Dev-mode diagnostics: log the outgoing request
     if (import.meta.env.DEV) {
         const hasAuth = !!config.headers.Authorization;
         console.log(`[api] ${config.method.toUpperCase()} ${config.url} auth=${hasAuth ? 'yes' : 'NO'}`);
@@ -33,7 +32,6 @@ api.interceptors.response.use(
         if (error.response) {
             const status = error.response.status;
             const url = error.config?.url || '';
-            // Dev-mode diagnostics: log the failed response with context
             if (import.meta.env.DEV) {
                 const tokenInStorage = typeof localStorage !== 'undefined' ? !!localStorage.getItem('token') : false;
                 const path = typeof window !== 'undefined' ? window.location.pathname : '';
@@ -44,20 +42,15 @@ api.interceptors.response.use(
                     (status === 401 ? ' (token rejected by server — will redirect to /login)' : '')
                 );
             }
-            // 401 means the token is invalid/expired/rejected — force re-login.
-            // 403 is a permission error (token valid, but role lacks access) — let
-            // the calling code handle it; do NOT log the user out for that.
             if (status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
                 try {
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                 } catch { /* ignore */ }
-                // Use replace to avoid back-button loops
                 window.location.replace('/login');
             }
             return Promise.reject(error);
         }
-        // No response -> network / CORS / timeout
         const isCors = typeof window !== 'undefined' && error.message === 'Network Error';
         if (isCors) {
             const friendly = new Error(
@@ -75,12 +68,13 @@ api.interceptors.response.use(
     }
 );
 
+// ---------------------------------------------------------------------------
+// Auth API
+// ---------------------------------------------------------------------------
 export const authAPI = {
     // POST /Account/login
     login: async (email, password) => {
         const response = await api.post('/Account/login', { email, password });
-        // Backend returns the JWT as `accessToken` (with optional `refreshToken`).
-        // Older mocks used `token` — accept both so we never silently drop it.
         const token = response.data?.accessToken || response.data?.token;
         if (token) {
             localStorage.setItem('token', token);
@@ -102,7 +96,6 @@ export const authAPI = {
     },
     // POST /Account/create-employee
     addStaff: async (staffData) => {
-        // staffData: { email, userName, password, role: "Staff", phoneNumber }
         const response = await api.post('/Account/create-employee', staffData);
         return response.data ?? { success: true };
     },
@@ -116,149 +109,291 @@ export const authAPI = {
         const response = await api.put(`/Account/unsuspend/${userName}`);
         return response.data ?? { success: true };
     },
+    // PUT /Account/update-employee
+    updateEmployee: async (userName, employeeData) => {
+        const response = await api.put('/Account/update-employee', { userName, ...employeeData });
+        return response.data ?? { success: true };
+    },
     // GET /Account/status
     getStatus: async () => {
         const response = await api.get('/Account/status');
         return response.data;
-    }
+    },
+    // POST /account/refresh-token
+    refreshToken: async (refreshToken) => {
+        const response = await api.post('/account/refresh-token', { refreshToken });
+        const token = response.data?.accessToken || response.data?.token;
+        if (token) localStorage.setItem('token', token);
+        if (response.data?.refreshToken) localStorage.setItem('refreshToken', response.data.refreshToken);
+        return response.data;
+    },
 };
 
+// ---------------------------------------------------------------------------
+// Services API  (uses /admin/services/requests & /services/requests)
+// ---------------------------------------------------------------------------
 export const servicesAPI = {
-    // Mock getDashboardStats for dashboard (replace with real endpoint when available)
+    // GET /admin/services/requests — used by Dashboard, Transactions, Reports
     getDashboardStats: async () => {
-        // Example mock data structure expected by Dashboard
-        return {
-            stats: [],
-            monthlyData: [],
-            pieData: []
-        };
+        const response = await api.get('/admin/services/requests');
+        const all = Array.isArray(response.data)
+            ? response.data
+            : (response.data?.requests || response.data?.services || []);
+        return { all };
     },
-    // GET recent transactions – uses /UserServices/all, returns last 5
+    // GET /admin/services/requests — returns last 5
     getRecentTransactions: async () => {
         try {
-            const response = await api.get('/UserServices/all');
+            const response = await api.get('/admin/services/requests');
             const all = Array.isArray(response.data) ? response.data : [];
-            // Map server fields to the shape Dashboard expects
             return all.slice(0, 5).map((item) => ({
-                id: item.id || item.requestId || item.serviceId || '-',
-                company: item.companyName || item.userName || item.clientName || '-',
-                type: item.serviceType || item.type || item.serviceName || '-',
+                id: item.id || '-',
+                serviceName: item.serviceNameAr || item.serviceNameEn || item.serviceId || '-',
                 status: item.status || 'pending',
-                date: item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-',
+                date: item.createdAt && item.createdAt !== '0001-01-01T00:00:00'
+                    ? new Date(item.createdAt).toLocaleDateString('ar-EG') : '-',
             }));
         } catch {
             return [];
         }
     },
-    // GET /UserServices/all (Get All Requests With details)
+    // GET /admin/services/requests
     getAllRequests: async (config = {}) => {
-        const response = await api.get('/UserServices/all', config);
+        const response = await api.get('/admin/services/requests', config);
         return response.data;
     },
-    // GET /UserServices/MyAllServices (Get All Request For Each User)
-    getMyAllServices: async () => {
-        const response = await api.get('/UserServices/MyAllServices');
-        return response.data;
-    },
-    // GET /UserServices/my-requests (Get Staff Requests)
+    // GET /services/requests  (employee's own requests)
     getStaffRequests: async () => {
-        const response = await api.get('/UserServices/my-requests');
+        const response = await api.get('/services/requests');
         return response.data;
     },
-    // GET /UserServices/AllZakat
-    getAllZakat: async () => {
-        const response = await api.get('/UserServices/AllZakat');
-        return response.data;
-    },
-    // PUT /UserServices/set-price (Admin Set Cost)
-    setCost: async (requestId, price) => {
-        const response = await api.put('/UserServices/set-price', { requestId, price });
-        return response.data ?? { success: true };
-    },
-    // POST /UserServices/assign-request (Assign request to employee)
-    assignRequest: async (requestId, employeeUserId) => {
-        const response = await api.post('/UserServices/assign-request', { RequestId: requestId, EmployeeUserId: employeeUserId });
-        return response.data ?? { success: true };
-    },
-    // PUT /UserServices/update-status
+    // PUT /admin/services/requests/{requestId}/status
     updateStatus: async (requestId, status) => {
-        const response = await api.put('/UserServices/update-status', { requestId, status });
+        const response = await api.put(`/admin/services/requests/${requestId}/status`, { status });
         return response.data ?? { success: true };
     },
-    // POST /UserServices/add-description
+    // PUT /admin/services/requests/{requestId}/cost
+    setCost: async (requestId, price) => {
+        const response = await api.put(`/admin/services/requests/${requestId}/cost`, { price });
+        return response.data ?? { success: true };
+    },
+    // POST /admin/services/requests/{requestId}/assign
+    assignRequest: async (requestId, employeeUserId) => {
+        const response = await api.post(`/admin/services/requests/${requestId}/assign`, { employeeUserId });
+        return response.data ?? { success: true };
+    },
+    // PUT /admin/services/requests/{requestId}/description
     addDescription: async (requestId, description) => {
-        const response = await api.post('/UserServices/add-description', { RequestId: requestId, description });
+        const response = await api.put(`/admin/services/requests/${requestId}/description`, { description });
         return response.data ?? { success: true };
     },
-    /**
-     * Assign ALL requests of a given company (userId) to an employee.
-     * Iterates over every request returned by /UserServices/all and calls
-     * /UserServices/assign-request for those that match `companyUserId` and
-     * are not already assigned to `employeeUserId`.
-     * Returns a summary of successes / failures.
-     */
+    // Assign ALL requests of a company to an employee
     assignCompanyToEmployee: async (companyUserId, employeeUserId) => {
-        const all = await api.get('/UserServices/all');
-        const list = Array.isArray(all.data) ? all.data : (all.data?.requests || all.data?.services || []);
-        const targets = list.filter(r => r.userId === companyUserId && r.assignedEmployeeUserId !== employeeUserId);
-        if (targets.length === 0) {
-            return { success: true, assigned: 0, failed: 0, total: 0 };
-        }
-        const results = await Promise.allSettled(
-            targets.map(r => api.post('/UserServices/assign-request', { RequestId: r.requestId, EmployeeUserId: employeeUserId }))
-        );
-        const assigned = results.filter(r => r.status === 'fulfilled').length;
-        const failed = results.length - assigned;
-        return { success: failed === 0, assigned, failed, total: results.length };
-    }
+        const response = await api.post('/admin/services/requests/assign-bulk', { companyUserId, employeeUserId });
+        return response.data ?? { success: true, assigned: 0, failed: 0, total: 0 };
+    },
 };
 
-export const documentsAPI = {
-    // GET /CompanyDocuments/admin/all-companies
-    // Returns a flat list of every company document on the platform.
-    // Each item is expected to carry a companyId / companyUserId / userId
-    // (and ideally a companyName) so it can be grouped per company.
-    getAllCompaniesDocuments: async () => {
-        const response = await api.get('/CompanyDocuments/admin/all-companies');
+// ---------------------------------------------------------------------------
+// Service Categories API  →  /api/admin/services/categories
+// ---------------------------------------------------------------------------
+export const serviceCategoriesAPI = {
+    // POST /admin/services/categories
+    addCategory: async (formData) => {
+        const response = await api.post('/admin/services/categories', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
         return response.data;
     },
+    // GET /admin/services/categories
+    getCategories: async () => {
+        const response = await api.get('/admin/services/categories');
+        return response.data;
+    },
+    // PUT /admin/services/categories/{id}
+    editCategory: async (id, formData) => {
+        const response = await api.put(`/admin/services/categories/${id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data ?? { success: true };
+    },
+    // DELETE /admin/services/categories/{id}
+    deleteCategory: async (id) => {
+        const response = await api.delete(`/admin/services/categories/${id}`);
+        return response.data ?? { success: true };
+    },
+    // GET /services  (user-facing: all categories + services)
+    getCategoriesForUser: async () => {
+        const response = await api.get('/services');
+        return response.data;
+    },
+    // GET /services/categories/{categoryId}
+    getServicesByCategory: async (categoryId) => {
+        const response = await api.get(`/services/categories/${categoryId}`);
+        return response.data;
+    },
+};
 
-    // Group a flat list of documents by company id.
-    // Accepts the response from getAllCompaniesDocuments() and returns
-    // an array of { companyId, companyName, documents: [...] } groups.
+// ---------------------------------------------------------------------------
+// Services Management API  →  /api/admin/services
+// ---------------------------------------------------------------------------
+export const servicesManagementAPI = {
+    // POST /admin/services
+    addService: async (payload) => {
+        const response = await api.post('/admin/services', payload);
+        return response.data;
+    },
+    // GET /admin/services
+    getAllServices: async () => {
+        const response = await api.get('/admin/services');
+        return response.data;
+    },
+    // PUT /admin/services/{id}
+    editService: async (id, payload) => {
+        const response = await api.put(`/admin/services/${id}`, payload);
+        return response.data ?? { success: true };
+    },
+    // DELETE /admin/services/{id}
+    deleteService: async (id) => {
+        const response = await api.delete(`/admin/services/${id}`);
+        return response.data ?? { success: true };
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Service Requests API  →  /api/admin/services/requests  &  /api/services/requests
+// ---------------------------------------------------------------------------
+export const serviceRequestsAPI = {
+    // GET /admin/services/requests
+    getAllRequests: async () => {
+        const response = await api.get('/admin/services/requests');
+        return response.data;
+    },
+    // GET /admin/services/requests/by-service/{serviceId}
+    getRequestsByService: async (serviceId) => {
+        const response = await api.get(`/admin/services/requests/by-service/${serviceId}`);
+        return response.data;
+    },
+    // PUT /admin/services/requests/{id}/status
+    updateRequestStatus: async (id, status) => {
+        const response = await api.put(`/admin/services/requests/${id}/status`, { status });
+        return response.data ?? { success: true };
+    },
+    // POST /services/requests  (user: create request)
+    createRequest: async (formData) => {
+        const response = await api.post('/services/requests', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+    // GET /services/requests  (user: my requests)
+    getMyRequests: async () => {
+        const response = await api.get('/services/requests');
+        return response.data;
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Dashboard API  →  dedicated stats endpoints
+// ---------------------------------------------------------------------------
+export const dashboardAPI = {
+    // GET /dashboard/users
+    getUsersStats: async () => {
+        const response = await api.get('/dashboard/users');
+        return response.data;
+    },
+    // GET /dashboard/companies
+    getCompaniesStats: async () => {
+        const response = await api.get('/dashboard/companies');
+        return response.data;
+    },
+    // GET /dashboard/services
+    getServicesStats: async () => {
+        const response = await api.get('/dashboard/services');
+        return response.data;
+    },
+    // GET /dashboard/documents
+    getDocumentsStats: async () => {
+        const response = await api.get('/dashboard/documents');
+        return response.data;
+    },
+    // GET /dashboard/requests
+    getRequestsStats: async () => {
+        const response = await api.get('/dashboard/requests');
+        return response.data;
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Documents API
+// ---------------------------------------------------------------------------
+export const documentsAPI = {
+    // GET /documents/types
+    getDocumentTypes: async () => {
+        const response = await api.get('/documents/types');
+        return response.data;
+    },
+    // POST /documents (form-data: DocumentType, DocumentName, File, IssueDate, ExpiryDate, ReferenceNumber, Notes)
+    uploadDocument: async (formData) => {
+        const response = await api.post('/documents', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    },
+    // GET /documents
+    getAllDocuments: async () => {
+        const response = await api.get('/documents');
+        return response.data;
+    },
+    // GET /documents/{id}
+    getDocumentById: async (id) => {
+        const response = await api.get(`/documents/${id}`);
+        return response.data;
+    },
+    // DELETE /documents/{id}
+    deleteDocument: async (id) => {
+        const response = await api.delete(`/documents/${id}`);
+        return response.data ?? { success: true };
+    },
+    // GET /documents/admin/all
+    getAdminAllDocuments: async () => {
+        const response = await api.get('/documents/admin/all');
+        return response.data;
+    },
+    // GET /documents/admin/user/{userId}
+    getUserDocuments: async (userId) => {
+        const response = await api.get(`/documents/admin/user/${userId}`);
+        return response.data;
+    },
+    // Group documents by user/company for the Companies page
     groupByCompany: (raw) => {
-        const list = Array.isArray(raw)
-            ? raw
-            : (raw?.documents || raw?.data || raw?.items || raw?.companies || []);
+        const list = Array.isArray(raw) ? raw : (raw?.documents || raw?.data || raw?.items || []);
         const groups = new Map();
         for (const item of list) {
-            const id = item.companyId ?? item.companyUserId ?? item.userId ?? item.ownerId ?? 'unknown';
-            const name = item.companyName ?? item.company ?? item.userName ?? null;
+            const id = item.userId ?? item.appUserId ?? item.companyId ?? 'unknown';
+            const name = item.userName ?? item.companyName ?? null;
             if (!groups.has(id)) {
                 groups.set(id, { companyId: id, companyName: name, documents: [] });
             }
             const g = groups.get(id);
             if (!g.companyName && name) g.companyName = name;
             g.documents.push({
-                id: item.id ?? item.documentId ?? item.docId ?? null,
-                name: item.name ?? item.documentName ?? item.docName ?? item.type ?? item.title ?? '—',
-                number: item.number ?? item.documentNumber ?? item.docNumber ?? '—',
-                issueDate: (item.issueDate ?? item.issuedAt ?? '').toString().split('T')[0] || '—',
-                expiryDate: (item.expiryDate ?? item.expiresAt ?? '').toString().split('T')[0] || '—',
-                fileUrl: item.fileUrl ?? item.url ?? item.path ?? '#'
+                id: item.id ?? null,
+                name: item.documentName ?? item.name ?? item.documentType ?? '—',
+                number: item.referenceNumber ?? item.number ?? '—',
+                issueDate: (item.issueDate ?? '').toString().split('T')[0] || '—',
+                expiryDate: (item.expiryDate ?? '').toString().split('T')[0] || '—',
+                fileUrl: item.fileUrl ?? item.url ?? '#',
             });
         }
         return Array.from(groups.values());
-    }
+    },
 };
 
 // ---------------------------------------------------------------------------
-// Status helpers — bridge between the server enum
-// (Pending, InProgress, Completed, Cancelled, WaitingForPayment, Paid,
-//  MissingDocuments) and the user-facing label keys used across pages.
+// Status helpers
 // ---------------------------------------------------------------------------
 
-/** Map enum value received from the server to a normalised display key. */
 export function serverStatusToDisplay(s) {
     const raw = (s || '').toLowerCase().replace(/[\s_-]/g, '');
     const map = {
@@ -273,7 +408,6 @@ export function serverStatusToDisplay(s) {
     return map[raw] || raw;
 }
 
-/** Map a display key back to the server enum string. */
 export function displayToServerStatus(display) {
     const raw = (display || '').toLowerCase().replace(/[\s_-]/g, '');
     const map = {
@@ -292,10 +426,8 @@ export function displayToServerStatus(display) {
     return map[raw] || 'Pending';
 }
 
-/** Normalised lower-case version (no spaces / underscores / hyphens). */
 export function normalizeStatus(s) {
     return (s || '').toLowerCase().replace(/[\s_-]/g, '');
 }
 
 export default api;
-

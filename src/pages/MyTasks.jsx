@@ -29,9 +29,6 @@ const MyTasks = () => {
         const load = async () => {
             setLoading(true);
             try {
-                // For staff: hit /UserServices/my-requests (server filters by current user).
-                // For admin: fall back to /UserServices/all and filter by assignedEmployeeUserId
-                // so admin can preview what a specific employee would see.
                 const isAdmin = user?.role === 'admin';
                 const calls = isAdmin
                     ? [servicesAPI.getAllRequests().catch(() => []), authAPI.getAllUsers().catch(() => [])]
@@ -49,29 +46,25 @@ const MyTasks = () => {
                 }
 
                 const myId = user?.id || user?.name;
-                // /my-requests already returns only the staff's own tasks. For admin view we filter.
                 const myAssigned = isAdmin
-                    ? reqList.filter(r => r.assignedEmployeeUserId === myId)
+                    ? reqList.filter(r => r.appUserId === myId || r.assignedEmployeeUserId === myId)
                     : reqList;
 
                 const myTx = myAssigned.map(item => {
-                    const u = userLookup.get(item.userId);
+                    const u = userLookup.get(item.appUserId);
                     return {
-                        id: item.requestId || item.id,
-                        company: u?.userName || u?.email || item.userId,
-                        type: item.serviceType || item.type || item.serviceName || '—',
+                        id: item.id,
+                        serviceName: item.serviceNameAr || item.serviceNameEn || '—',
                         status: serverStatusToDisplay(item.status) || 'pending',
-                        createdDate: item.createdAt ? item.createdAt.split('T')[0] : '—',
-                        attachments: Array.isArray(item.fileUrls) ? item.fileUrls : [],
-                        description: item.serviceDetails || item.description || '',
+                        createdDate: item.createdAt && item.createdAt !== '0001-01-01T00:00:00' ? item.createdAt.split('T')[0] : '—',
+                        description: item.description || '',
                     };
                 });
 
-                // "Assigned companies" = unique userIds across the employee's assigned requests.
                 const seen = new Set();
                 const myCompanies = [];
                 for (const r of myAssigned) {
-                    const cid = r.userId;
+                    const cid = r.appUserId;
                     if (!cid || seen.has(cid)) continue;
                     seen.add(cid);
                     const u = userLookup.get(cid) || {};
@@ -81,7 +74,7 @@ const MyTasks = () => {
                         email: u.email || '—',
                         phone: u.phoneNumber || '—',
                         status: u.isActive === false ? 'inactive' : 'active',
-                        requestCount: myAssigned.filter(x => x.userId === cid).length,
+                        requestCount: myAssigned.filter(x => x.appUserId === cid).length,
                     });
                 }
 
@@ -245,8 +238,7 @@ const MyTasks = () => {
                             <thead className="bg-dark-50 dark:bg-dark-800/50">
                                 <tr>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('transactionId')}</th>
-                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('company')}</th>
-                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('transactionType')}</th>
+                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('service')}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('status')}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('date')}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('actions')}</th>
@@ -258,8 +250,7 @@ const MyTasks = () => {
                                         <td className="px-4 py-3">
                                             <span className="font-mono text-xs text-primary-500 font-medium">{tx.id}</span>
                                         </td>
-                                        <td className="px-4 py-3 text-sm text-dark-700 dark:text-dark-200">{tx.company}</td>
-                                        <td className="px-4 py-3 text-sm text-dark-600 dark:text-dark-300">{tx.type}</td>
+                                        <td className="px-4 py-3 text-sm text-dark-700 dark:text-dark-200">{tx.serviceName}</td>
                                         <td className="px-4 py-3">{getStatusBadge(tx.status)}</td>
                                         <td className="px-4 py-3 text-sm text-dark-500 dark:text-dark-400">
                                             <span className="inline-flex items-center gap-1">

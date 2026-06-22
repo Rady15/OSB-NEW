@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { authAPI } from '../services/api';
+import { authAPI, dashboardAPI, documentsAPI } from '../services/api';
 import {
     Users as UsersIcon,
     Search,
@@ -15,7 +15,10 @@ import {
     MoreVertical,
     CheckCircle,
     XCircle,
-    Key
+    Key,
+    FileText,
+    Building2,
+    MapPin
 } from 'lucide-react';
 
 const Users = () => {
@@ -23,55 +26,68 @@ const Users = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [usersList, setUsersList] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [showModal, setShowModal] = useState(false);
+    const [modalMode, setModalMode] = useState('add');
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '', nameEn: '', email: '', phone: '', role: 'employee', status: 'active'
+    });
 
     useEffect(() => {
         const fetchUsers = async () => {
-            setLoading(true);
             try {
-                const data = await authAPI.getAllUsers();
-                const arr = Array.isArray(data) ? data : data.users || [];
-                const formatted = arr.map(u => ({
-                    id: u.id || u.userName,
-                    name: u.fullName || u.userName || 'مستخدم',
-                    nameEn: u.userName || 'User',
-                    email: u.email || '—',
-                    phone: u.phoneNumber || '—',
-                    role: (u.role || 'employee').toLowerCase(),
-                    status: u.isActive === false ? 'inactive' : 'active',
-                    lastLogin: u.lastLogin || '—',
-                    avatar: null,
+                const [companiesData, allDocsData] = await Promise.all([
+                    dashboardAPI.getCompaniesStats(),
+                    documentsAPI.getAdminAllDocuments()
+                ]);
+                const companies = companiesData?.companies || [];
+                const allDocs = Array.isArray(allDocsData) ? allDocsData : (allDocsData?.documents || allDocsData?.data || []);
+                const docsByUser = new Map();
+                for (const doc of allDocs) {
+                    const uid = doc.userId ?? doc.appUserId;
+                    if (!uid) continue;
+                    if (!docsByUser.has(uid)) docsByUser.set(uid, []);
+                    docsByUser.get(uid).push(doc);
+                }
+                const list = companies.map(c => ({
+                    id: c.userId || c.id,
+                    userId: c.userId,
+                    name: c.nameAr || c.userName || '—',
+                    nameEn: c.nameEn || c.userName || '—',
+                    email: c.userEmail || c.email || '—',
+                    phone: c.phone || '—',
+                    role: 'user',
+                    status: 'active',
+                    companyName: c.nameAr || c.nameEn || '—',
+                    companyType: c.companyType || '—',
+                    capital: c.capital,
+                    city: c.city || '—',
+                    activities: c.activities || [],
+                    commercialRegisterNumber: c.commercialRegisterNumber,
+                    unifiedNumber: c.unifiedNumber,
+                    zakatTaxNumber: c.zakatTaxNumber,
+                    nitaqatNumber: c.nitaqatNumber,
+                    laborOfficeNumber: c.laborOfficeNumber,
+                    vatNumber: c.vatNumber,
+                    partners: c.partners || [],
+                    managers: c.managers || [],
+                    totalDocuments: docsByUser.get(c.userId)?.length || 0,
+                    documents: (docsByUser.get(c.userId) || []).map(d => ({
+                        id: d.id,
+                        name: d.documentName || d.documentType || '—',
+                        number: d.referenceNumber || '—',
+                        issueDate: (d.issueDate || '').split('T')[0] || '—',
+                        expiryDate: (d.expiryDate || '').split('T')[0] || '—',
+                        fileUrl: d.fileUrl || '#',
+                    })),
                 }));
-                setUsersList(formatted);
-            } catch (err) {
-                console.error('Error fetching users:', err);
+                setUsersList(list);
+            } catch {
                 setUsersList([]);
-            } finally {
-                setLoading(false);
             }
         };
         fetchUsers();
     }, []);
-
-    const [showModal, setShowModal] = useState(false);
-    const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'view'
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        nameEn: '',
-        email: '',
-        phone: '',
-        role: 'employee',
-        status: 'active'
-    });
-
-    const roles = [
-        { value: 'all', label: isRTL ? 'جميع الأدوار' : 'All Roles' },
-        { value: 'admin', label: isRTL ? 'مدير النظام' : 'Admin' },
-        { value: 'manager', label: isRTL ? 'مدير' : 'Manager' },
-        { value: 'employee', label: isRTL ? 'موظف' : 'Employee' },
-        { value: 'viewer', label: isRTL ? 'مشاهد' : 'Viewer' },
-    ];
 
     const getRoleBadge = (role) => {
         const config = {
@@ -79,8 +95,9 @@ const Users = () => {
             manager: { color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', label: isRTL ? 'مدير' : 'Manager' },
             employee: { color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400', label: isRTL ? 'موظف' : 'Employee' },
             viewer: { color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400', label: isRTL ? 'مشاهد' : 'Viewer' },
+            user: { color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400', label: isRTL ? 'مستخدم تطبيق' : 'App User' },
         };
-        const { color, label } = config[role] || config.viewer;
+        const { color, label } = config[role] || config.user;
         return (
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${color}`}>
                 <Shield className="w-3 h-3" />
@@ -108,11 +125,30 @@ const Users = () => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase();
     };
 
-    const handleOpenModal = (mode, user = null) => {
+    const handleOpenModal = async (mode, user = null) => {
         setModalMode(mode);
         setSelectedUser(user);
         if (user) {
-            setFormData({ ...user });
+            const form = { ...user };
+            if (mode === 'view' && user.userId) {
+                try {
+                    const docsData = await documentsAPI.getUserDocuments(user.userId);
+                    const list = Array.isArray(docsData) ? docsData : (docsData?.documents || docsData?.data || []);
+                    form.documents = list.map(d => ({
+                        id: d.id,
+                        name: d.documentName || d.documentType || '—',
+                        number: d.referenceNumber || '—',
+                        issueDate: (d.issueDate || '').split('T')[0] || '—',
+                        expiryDate: (d.expiryDate || '').split('T')[0] || '—',
+                        fileUrl: d.fileUrl || '#',
+                    }));
+                    form.totalDocuments = form.documents.length;
+                    setSelectedUser(prev => prev ? { ...prev, documents: form.documents, totalDocuments: form.documents.length } : null);
+                } catch {
+                    form.documents = form.documents || [];
+                }
+            }
+            setFormData(form);
         } else {
             setFormData({
                 name: '',
@@ -157,11 +193,12 @@ const Users = () => {
     };
 
     const filteredUsers = usersList.filter(user => {
-        const matchesSearch = user.name.includes(searchQuery) ||
-            user.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-        return matchesSearch && matchesRole;
+        const q = searchQuery.toLowerCase();
+        return user.name.includes(q) ||
+            user.nameEn.toLowerCase().includes(q) ||
+            user.email.toLowerCase().includes(q) ||
+            user.companyName?.toLowerCase().includes(q) ||
+            user.phone?.includes(q);
     });
 
     return (
@@ -186,12 +223,13 @@ const Users = () => {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                 {[
                     { label: isRTL ? 'إجمالي المستخدمين' : 'Total Users', value: usersList.length.toString(), color: 'from-blue-500 to-blue-600' },
-                    { label: isRTL ? 'نشط' : 'Active', value: usersList.filter(u => u.status === 'active').length.toString(), color: 'from-emerald-500 to-emerald-600' },
-                    { label: isRTL ? 'غير نشط' : 'Inactive', value: usersList.filter(u => u.status === 'inactive').length.toString(), color: 'from-red-500 to-red-600' },
-                    { label: isRTL ? 'مدراء النظام' : 'Admins', value: usersList.filter(u => u.role === 'admin').length.toString(), color: 'from-purple-500 to-purple-600' },
+                    { label: isRTL ? 'لديهم مستندات' : 'With Documents', value: usersList.filter(u => u.totalDocuments > 0).length.toString(), color: 'from-emerald-500 to-emerald-600' },
+                    { label: isRTL ? 'بدون مستندات' : 'No Documents', value: usersList.filter(u => !u.totalDocuments).length.toString(), color: 'from-orange-500 to-orange-600' },
+                    { label: isRTL ? 'إجمالي المستندات' : 'Total Documents', value: usersList.reduce((s, u) => s + (u.totalDocuments || 0), 0).toString(), color: 'from-amber-500 to-amber-600' },
+                    { label: isRTL ? 'شركات مسجلة' : 'Registered Companies', value: usersList.filter(u => u.totalDocuments > 0).length.toString(), color: 'from-purple-500 to-purple-600' },
                 ].map((stat, index) => (
                     <div key={index} className="card p-5">
                         <div className="flex items-center justify-between">
@@ -209,29 +247,15 @@ const Users = () => {
 
             {/* Filters */}
             <div className="card p-4">
-                <div className="flex flex-col md:flex-row gap-4">
-                    {/* Search */}
-                    <div className="flex-1 relative">
-                        <Search className={`w-5 h-5 text-dark-400 absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-4' : 'left-4'}`} />
-                        <input
-                            type="text"
-                            placeholder={t('search')}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className={`input-field ${isRTL ? 'pr-12' : 'pl-12'}`}
-                        />
-                    </div>
-
-                    {/* Role Filter */}
-                    <select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        className="input-field w-full md:w-48"
-                    >
-                        {roles.map(role => (
-                            <option key={role.value} value={role.value}>{role.label}</option>
-                        ))}
-                    </select>
+                <div className="flex-1 relative">
+                    <Search className={`w-5 h-5 text-dark-400 absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-4' : 'left-4'}`} />
+                    <input
+                        type="text"
+                        placeholder={t('search')}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className={`input-field ${isRTL ? 'pr-12' : 'pl-12'}`}
+                    />
                 </div>
             </div>
 
@@ -266,9 +290,29 @@ const Users = () => {
                                 <span dir="ltr">{user.phone}</span>
                             </div>
                             <div className="flex items-center gap-3 text-dark-500 dark:text-dark-400">
-                                <Calendar className="w-4 h-4" />
-                                <span>{t('lastLogin')}: {user.lastLogin}</span>
+                                <Building2 className="w-4 h-4" />
+                                <span>{user.companyName}</span>
                             </div>
+                            <div className="flex items-center gap-3 text-dark-500 dark:text-dark-400">
+                                <MapPin className="w-4 h-4" />
+                                <span>{user.city}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-dark-500 dark:text-dark-400">
+                                <FileText className="w-4 h-4" />
+                                <span>{isRTL ? `المستندات: ${user.totalDocuments || 0}` : `Documents: ${user.totalDocuments || 0}`}</span>
+                            </div>
+                            {user.activities?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                    {user.activities.slice(0, 3).map((a, i) => (
+                                        <span key={i} className="px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-[10px] font-medium">
+                                            {a}
+                                        </span>
+                                    ))}
+                                    {user.activities.length > 3 && (
+                                        <span className="text-[10px] text-dark-400">+{user.activities.length - 3}</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center justify-between mt-6 pt-4 border-t border-dark-100 dark:border-dark-700">
@@ -368,6 +412,44 @@ const Users = () => {
                                         placeholder="+966..."
                                     />
                                 </div>
+                                {modalMode === 'view' && formData.companyName && (
+                                    <div className="border-t border-dark-100 dark:border-dark-700 pt-4 mt-2 space-y-3">
+                                        <h3 className="font-semibold text-dark-800 dark:text-white text-sm flex items-center gap-2">
+                                            <Building2 className="w-4 h-4 text-primary-500" />
+                                            {isRTL ? 'بيانات الشركة' : 'Company Info'}
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div>
+                                                <span className="text-dark-400 text-xs">{isRTL ? 'الشركة' : 'Company'}</span>
+                                                <p className="text-dark-700 dark:text-dark-200 font-medium">{formData.companyName}</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-dark-400 text-xs">{isRTL ? 'النوع' : 'Type'}</span>
+                                                <p className="text-dark-700 dark:text-dark-200 font-medium">{formData.companyType}</p>
+                                            </div>
+                                            {formData.capital != null && (
+                                                <div>
+                                                    <span className="text-dark-400 text-xs">{isRTL ? 'رأس المال' : 'Capital'}</span>
+                                                    <p className="text-dark-700 dark:text-dark-200 font-medium">{Number(formData.capital).toLocaleString()}</p>
+                                                </div>
+                                            )}
+                                            <div>
+                                                <span className="text-dark-400 text-xs">{isRTL ? 'المدينة' : 'City'}</span>
+                                                <p className="text-dark-700 dark:text-dark-200 font-medium">{formData.city || '—'}</p>
+                                            </div>
+                                        </div>
+                                        {formData.activities?.length > 0 && (
+                                            <div>
+                                                <span className="text-dark-400 text-xs">{isRTL ? 'الأنشطة' : 'Activities'}</span>
+                                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                                    {formData.activities.map((a, i) => (
+                                                        <span key={i} className="px-2 py-0.5 rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-xs font-medium">{a}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                         {isRTL ? 'الدور' : 'Role'}
@@ -401,6 +483,31 @@ const Users = () => {
                                     </select>
                                 </div>
                             </div>
+
+                            {modalMode === 'view' && formData.documents?.length > 0 && (
+                                <div className="border-t border-dark-100 dark:border-dark-700 pt-4 mt-4">
+                                    <h3 className="text-lg font-semibold text-dark-800 dark:text-white flex items-center gap-2 mb-4">
+                                        <FileText className="w-5 h-5 text-primary-500" />
+                                        {isRTL ? 'المستندات' : 'Documents'}
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {formData.documents.map(doc => (
+                                            <div key={doc.id} className="p-3 rounded-xl border border-dark-100 dark:border-dark-700 bg-dark-50/50 dark:bg-dark-800/40">
+                                                <p className="font-semibold text-sm text-dark-800 dark:text-white">{doc.name}</p>
+                                                <p className="text-xs text-dark-500 mt-1">{isRTL ? 'رقم:' : 'No:'} {doc.number}</p>
+                                                <p className="text-xs text-dark-500">{isRTL ? 'تاريخ الإصدار:' : 'Issue:'} {doc.issueDate}</p>
+                                                <p className="text-xs text-dark-500">{isRTL ? 'تاريخ الانتهاء:' : 'Expiry:'} {doc.expiryDate}</p>
+                                                {doc.fileUrl && doc.fileUrl !== '#' && (
+                                                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer"
+                                                       className="text-xs text-primary-500 hover:text-primary-600 font-semibold mt-2 inline-block">
+                                                        {isRTL ? 'عرض الملف' : 'View File'}
+                                                    </a>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="p-6 border-t border-dark-100 dark:border-dark-700 flex justify-end gap-3">
                             <button onClick={handleCloseModal} className="btn-secondary">
