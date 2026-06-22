@@ -110,16 +110,16 @@ const Services = () => {
         if (!catForm.nameAr.trim()) return;
         setSaving(true);
         try {
-            const fd = new FormData();
-            fd.append('NameAr', catForm.nameAr);
-            fd.append('NameEn', catForm.nameEn);
-            if (catForm.image) fd.append('Image', catForm.image);
+            const hasImage = !!catForm.image;
+            const payload = hasImage
+                ? (() => { const fd = new FormData(); fd.append('NameAr', catForm.nameAr); fd.append('NameEn', catForm.nameEn); fd.append('Image', catForm.image); return fd; })()
+                : { nameAr: catForm.nameAr, nameEn: catForm.nameEn };
 
             if (modalMode === 'edit' && selectedCategory) {
-                await serviceCategoriesAPI.editCategory(selectedCategory.id, fd);
+                await serviceCategoriesAPI.editCategory(selectedCategory.id, payload);
                 addNotification(isRTL ? 'تم تعديل الفئة بنجاح' : 'Category updated', 'success');
             } else {
-                await serviceCategoriesAPI.addCategory(fd);
+                await serviceCategoriesAPI.addCategory(payload);
                 addNotification(isRTL ? 'تمت إضافة الفئة بنجاح' : 'Category added', 'success');
             }
             setShowCategoryModal(false);
