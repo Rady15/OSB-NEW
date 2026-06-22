@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { authAPI } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     UserCog,
     Search,
@@ -24,6 +25,8 @@ const Employees = () => {
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [employeesList, setEmployeesList] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null, danger: false });
+    const showConfirm = (title, message, onConfirm, danger = true) => setConfirmDialog({ show: true, title, message, onConfirm, danger });
 
     useEffect(() => {
         const fetchEmployees = async () => {
@@ -231,15 +234,19 @@ const Employees = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm(isRTL ? 'هل أنت متأكد من حذف هذا الموظف؟' : 'Are you sure you want to delete this employee?')) {
-            setEmployeesList(prev => prev.filter(e => e.id !== id));
-            addNotification(
-                isRTL
-                    ? 'تم حذف الموظف محلياً (لا يوجد endpoint حذف على الخادم)'
-                    : 'Employee removed locally (no delete endpoint on the server).',
-                'warning'
-            );
-        }
+        showConfirm(
+            isRTL ? 'حذف الموظف' : 'Delete Employee',
+            isRTL ? 'هل أنت متأكد من حذف هذا الموظف؟' : 'Are you sure you want to delete this employee?',
+            () => {
+                setEmployeesList(prev => prev.filter(e => e.id !== id));
+                addNotification(
+                    isRTL
+                        ? 'تم حذف الموظف محلياً (لا يوجد endpoint حذف على الخادم)'
+                        : 'Employee removed locally (no delete endpoint on the server).',
+                    'warning'
+                );
+            }
+        );
     };
 
     const handleToggleSuspend = async (employee) => {
@@ -593,9 +600,18 @@ const Employees = () => {
                                 )}
                             </div>
                         </div>
-                    </div>
-                )
-            }
+                </div>
+            )
+        }
+
+            <ConfirmModal
+                show={confirmDialog.show}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                onConfirm={() => { confirmDialog.onConfirm?.(); setConfirmDialog({ show: false }); }}
+                onCancel={() => setConfirmDialog({ show: false })}
+            />
         </div>
     );
 };

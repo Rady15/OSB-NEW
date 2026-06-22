@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { serviceCategoriesAPI, servicesManagementAPI, serviceRequestsAPI } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     Briefcase,
     Search,
@@ -68,6 +69,8 @@ const Services = () => {
 
     // ── saving
     const [saving, setSaving] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null, danger: false });
+    const showConfirm = (title, message, onConfirm, danger = true) => setConfirmDialog({ show: true, title, message, onConfirm, danger });
 
     // ─── fetch all ────────────────────────────────────────────────────────────
     const fetchAll = useCallback(async () => {
@@ -130,15 +133,20 @@ const Services = () => {
     };
 
     const deleteCategory = async (id) => {
-        if (!window.confirm(isRTL ? 'هل أنت متأكد من حذف هذه الفئة؟' : 'Delete this category?')) return;
-        try {
-            await serviceCategoriesAPI.deleteCategory(id);
-            addNotification(isRTL ? 'تم حذف الفئة' : 'Category deleted', 'success');
-            fetchAll();
-        } catch (err) {
-            addNotification(isRTL ? 'فشل الحذف' : 'Delete failed', 'danger');
-            console.error(err);
-        }
+        showConfirm(
+            isRTL ? 'حذف الفئة' : 'Delete Category',
+            isRTL ? 'هل أنت متأكد من حذف هذه الفئة؟' : 'Delete this category?',
+            async () => {
+                try {
+                    await serviceCategoriesAPI.deleteCategory(id);
+                    addNotification(isRTL ? 'تم حذف الفئة' : 'Category deleted', 'success');
+                    fetchAll();
+                } catch (err) {
+                    addNotification(isRTL ? 'فشل الحذف' : 'Delete failed', 'danger');
+                    console.error(err);
+                }
+            }
+        );
     };
 
     // ─── service modal ────────────────────────────────────────────────────────
@@ -174,15 +182,20 @@ const Services = () => {
     };
 
     const deleteService = async (id) => {
-        if (!window.confirm(isRTL ? 'هل أنت متأكد من حذف هذه الخدمة؟' : 'Delete this service?')) return;
-        try {
-            await servicesManagementAPI.deleteService(id);
-            addNotification(isRTL ? 'تم حذف الخدمة' : 'Service deleted', 'success');
-            fetchAll();
-        } catch (err) {
-            addNotification(isRTL ? 'فشل الحذف' : 'Delete failed', 'danger');
-            console.error(err);
-        }
+        showConfirm(
+            isRTL ? 'حذف الخدمة' : 'Delete Service',
+            isRTL ? 'هل أنت متأكد من حذف هذه الخدمة؟' : 'Delete this service?',
+            async () => {
+                try {
+                    await servicesManagementAPI.deleteService(id);
+                    addNotification(isRTL ? 'تم حذف الخدمة' : 'Service deleted', 'success');
+                    fetchAll();
+                } catch (err) {
+                    addNotification(isRTL ? 'فشل الحذف' : 'Delete failed', 'danger');
+                    console.error(err);
+                }
+            }
+        );
     };
 
     // ─── update request status ────────────────────────────────────────────────
@@ -653,6 +666,15 @@ const Services = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                show={confirmDialog.show}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                onConfirm={() => { confirmDialog.onConfirm?.(); setConfirmDialog({ show: false }); }}
+                onCancel={() => setConfirmDialog({ show: false })}
+            />
         </div>
     );
 };

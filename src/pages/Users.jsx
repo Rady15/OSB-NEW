@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { authAPI, dashboardAPI, documentsAPI } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     Users as UsersIcon,
     Search,
@@ -32,6 +33,8 @@ const Users = () => {
     const [formData, setFormData] = useState({
         name: '', nameEn: '', email: '', phone: '', role: 'employee', status: 'active'
     });
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null, danger: false });
+    const showConfirm = (title, message, onConfirm, danger = true) => setConfirmDialog({ show: true, title, message, onConfirm, danger });
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -187,9 +190,11 @@ const Users = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm(isRTL ? 'هل أنت متأكد من حذف هذا المستخدم؟' : 'Are you sure you want to delete this user?')) {
-            setUsersList(prev => prev.filter(u => u.id !== id));
-        }
+        showConfirm(
+            isRTL ? 'حذف المستخدم' : 'Delete User',
+            isRTL ? 'هل أنت متأكد من حذف هذا المستخدم؟' : 'Are you sure you want to delete this user?',
+            () => setUsersList(prev => prev.filter(u => u.id !== id))
+        );
     };
 
     const filteredUsers = usersList.filter(user => {
@@ -522,6 +527,15 @@ const Users = () => {
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                show={confirmDialog.show}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                onConfirm={() => { confirmDialog.onConfirm?.(); setConfirmDialog({ show: false }); }}
+                onCancel={() => setConfirmDialog({ show: false })}
+            />
         </div>
     );
 };

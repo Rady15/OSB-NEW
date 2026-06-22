@@ -61,6 +61,12 @@
            hover:scale-[1.02] active:scale-[0.98] transition-all duration-200;
   }
   
+  .btn-danger {
+    @apply px-6 py-3 bg-gradient-to-r from-red-600 to-red-500 text-white rounded-xl 
+           font-medium shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 
+           hover:scale-[1.02] active:scale-[0.98] transition-all duration-200;
+  }
+  
   .btn-secondary {
     @apply px-6 py-3 bg-white dark:bg-dark-700 text-dark-700 dark:text-white rounded-xl 
            font-medium border border-dark-200 dark:border-dark-600 

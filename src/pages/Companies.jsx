@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { authAPI, servicesAPI, documentsAPI, dashboardAPI } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     Building2,
     Search,
@@ -17,7 +18,10 @@ import {
     Clock,
     ChevronLeft,
     ChevronRight,
-    UserPlus
+    UserPlus,
+    ZoomIn,
+    ZoomOut,
+    ExternalLink
 } from 'lucide-react';
 
 const Companies = () => {
@@ -28,6 +32,8 @@ const Companies = () => {
     const [companiesList, setCompaniesList] = useState([]);
     const [loading, setLoading] = useState(false);
     const [docsByCompany, setDocsByCompany] = useState({});
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null, danger: false });
+    const showConfirm = (title, message, onConfirm, danger = true) => setConfirmDialog({ show: true, title, message, onConfirm, danger });
 
     const fetchCompanies = async () => {
         setLoading(true);
@@ -94,6 +100,12 @@ const Companies = () => {
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'view'
     const [selectedCompany, setSelectedCompany] = useState(null);
+    const [showDocModal, setShowDocModal] = useState(false);
+    const [docModalMode, setDocModalMode] = useState('add');
+    const [docForm, setDocForm] = useState({ name: '', number: '', issueDate: '', expiryDate: '' });
+    const [editDocId, setEditDocId] = useState(null);
+    const resetDocForm = () => setDocForm({ name: '', number: '', issueDate: '', expiryDate: '' });
+    const [viewerModal, setViewerModal] = useState({ show: false, fileUrl: '', fileName: '', zoom: 1 });
     const [formData, setFormData] = useState({
         name: '',
         nameEn: '',
@@ -225,19 +237,65 @@ const Companies = () => {
         }
     };
 
+    const handleSaveDoc = () => {
+        if (!docForm.name.trim() || !docForm.expiryDate.trim()) return;
+        const docId = editDocId || Date.now();
+        const docData = {
+            id: docId,
+            name: docForm.name.trim(),
+            number: docForm.number.trim() || '—',
+            issueDate: docForm.issueDate || '—',
+            expiryDate: docForm.expiryDate,
+            fileUrl: '#'
+        };
+
+        if (docModalMode === 'renew' && editDocId) {
+            setCompaniesList(prev => prev.map(c => {
+                if (c.id === selectedCompany.id) {
+                    const docs = (c.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d);
+                    return { ...c, documents: docs };
+                }
+                return c;
+            }));
+            setSelectedCompany(prev => ({
+                ...prev,
+                documents: (prev.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d)
+            }));
+            addNotification(`تم تجديد وثيقة (${docData.name})`, 'warning');
+        } else {
+            setCompaniesList(prev => prev.map(c => {
+                if (c.id === selectedCompany.id) {
+                    const docs = c.documents ? [...c.documents, docData] : [docData];
+                    return { ...c, documents: docs };
+                }
+                return c;
+            }));
+            setSelectedCompany(prev => ({
+                ...prev,
+                documents: prev.documents ? [...prev.documents, docData] : [docData]
+            }));
+            addNotification(`تمت إضافة وثيقة جديدة (${docData.name})`, 'success');
+        }
+        setShowDocModal(false);
+    };
+
     const handleDelete = (id) => {
         const target = companiesList.find(c => c.id === id);
-        if (window.confirm(isRTL ? 'هل أنت متأكد من حذف هذه الشركة؟' : 'Are you sure you want to delete this company?')) {
-            setCompaniesList(prev => prev.filter(c => c.id !== id));
-            if (target) {
-                addNotification(
-                    isRTL
-                        ? `تم حذف الشركة محلياً: ${target.name} (لا يوجد endpoint حذف على الخادم)`
-                        : `Company removed locally: ${target.name} (no delete endpoint on the server)`,
-                    'warning'
-                );
+        showConfirm(
+            isRTL ? 'حذف الشركة' : 'Delete Company',
+            isRTL ? 'هل أنت متأكد من حذف هذه الشركة؟' : 'Are you sure you want to delete this company?',
+            () => {
+                setCompaniesList(prev => prev.filter(c => c.id !== id));
+                if (target) {
+                    addNotification(
+                        isRTL
+                            ? `تم حذف الشركة محلياً: ${target.name} (لا يوجد endpoint حذف على الخادم)`
+                            : `Company removed locally: ${target.name} (no delete endpoint on the server)`,
+                        'warning'
+                    );
+                }
             }
-        }
+        );
     };
 
     const handleToggleSuspend = async (company) => {
@@ -736,36 +794,10 @@ const Companies = () => {
                                         </h3>
                                         <button
                                             onClick={() => {
-                                                const docName = prompt(isRTL ? 'أدخل اسم الوثيقة الجديدة:' : 'Enter document name:');
-                                                if (!docName) return;
-                                                const docNum = prompt(isRTL ? 'أدخل رقم الوثيقة:' : 'Enter document number:');
-                                                const issueDate = prompt(isRTL ? 'أدخل تاريخ الإصدار (YYYY-MM-DD):' : 'Enter issue date (YYYY-MM-DD):');
-                                                const expiryDate = prompt(isRTL ? 'أدخل تاريخ الانتهاء (YYYY-MM-DD):' : 'Enter expiry date (YYYY-MM-DD):');
-                                                if (!expiryDate) return;
-
-                                                const newDoc = {
-                                                    id: Date.now(),
-                                                    name: docName,
-                                                    number: docNum || '—',
-                                                    issueDate: issueDate || '—',
-                                                    expiryDate: expiryDate,
-                                                    fileUrl: '#'
-                                                };
-
-                                                setCompaniesList(prev => prev.map(c => {
-                                                    if (c.id === selectedCompany.id) {
-                                                        const docs = c.documents ? [...c.documents, newDoc] : [newDoc];
-                                                        return { ...c, documents: docs };
-                                                    }
-                                                    return c;
-                                                }));
-
-                                                setSelectedCompany(prev => ({
-                                                    ...prev,
-                                                    documents: prev.documents ? [...prev.documents, newDoc] : [newDoc]
-                                                }));
-
-                                                addNotification(`تمت إضافة وثيقة جديدة (${docName}) لشركة ${selectedCompany.name}`, 'success');
+                                                resetDocForm();
+                                                setDocModalMode('add');
+                                                setEditDocId(null);
+                                                setShowDocModal(true);
                                             }}
                                             className="px-3 py-1.5 bg-primary-500 text-white rounded-lg text-xs font-semibold hover:bg-primary-600 transition-colors flex items-center gap-1"
                                         >
@@ -825,26 +857,30 @@ const Companies = () => {
                                                     </div>
 
                                                     <div className="flex justify-end gap-2 pt-2 border-t border-dark-100/50 dark:border-dark-700/50 text-xs">
+                                                        <button
+                                                            onClick={() => {
+                                                                if (doc.fileUrl && doc.fileUrl !== '#') {
+                                                                    setViewerModal({ show: true, fileUrl: doc.fileUrl, fileName: doc.name, zoom: 1 });
+                                                                } else {
+                                                                    addNotification(
+                                                                        isRTL ? 'لا يوجد ملف مرفق لهذه الوثيقة' : 'No file attached to this document',
+                                                                        'warning'
+                                                                    );
+                                                                }
+                                                            }}
+                                                            className="text-xs text-dark-500 hover:text-primary-500 font-semibold transition-colors flex items-center gap-1"
+                                                        >
+                                                            <Eye className="w-3.5 h-3.5" />
+                                                            {isRTL ? 'عرض' : 'View'}
+                                                        </button>
+                                                        <span className="text-dark-300 dark:text-dark-600">|</span>
                                                         {/* Renew/Edit document directly */}
                                                         <button
                                                             onClick={() => {
-                                                                const newExp = prompt(isRTL ? 'أدخل تاريخ الانتهاء الجديد (YYYY-MM-DD):' : 'Enter new expiry date (YYYY-MM-DD):', doc.expiryDate);
-                                                                if (!newExp) return;
-                                                                
-                                                                setCompaniesList(prev => prev.map(c => {
-                                                                    if (c.id === selectedCompany.id) {
-                                                                        const docs = (c.documents || []).map(d => d.id === doc.id ? { ...d, expiryDate: newExp } : d);
-                                                                        return { ...c, documents: docs };
-                                                                    }
-                                                                    return c;
-                                                                }));
-
-                                                                setSelectedCompany(prev => ({
-                                                                    ...prev,
-                                                                    documents: (prev.documents || []).map(d => d.id === doc.id ? { ...d, expiryDate: newExp } : d)
-                                                                }));
-
-                                                                addNotification(`تم تجديد تاريخ صلاحية (${doc.name}) لشركة ${selectedCompany.name} حتى تاريخ ${newExp}`, 'warning');
+                                                                setDocModalMode('renew');
+                                                                setEditDocId(doc.id);
+                                                                setDocForm({ name: doc.name, number: doc.number, issueDate: doc.issueDate, expiryDate: doc.expiryDate });
+                                                                setShowDocModal(true);
                                                             }}
                                                             className="text-xs text-primary-500 hover:text-primary-600 font-semibold transition-colors"
                                                         >
@@ -853,22 +889,26 @@ const Companies = () => {
                                                         <span className="text-dark-300 dark:text-dark-600">|</span>
                                                         <button
                                                             onClick={() => {
-                                                                if (confirm(isRTL ? 'هل أنت متأكد من حذف هذه الوثيقة؟' : 'Are you sure you want to delete this document?')) {
-                                                                    setCompaniesList(prev => prev.map(c => {
-                                                                        if (c.id === selectedCompany.id) {
-                                                                            const docs = (c.documents || []).filter(d => d.id !== doc.id);
-                                                                            return { ...c, documents: docs };
-                                                                        }
-                                                                        return c;
-                                                                    }));
+                                                                showConfirm(
+                                                                    isRTL ? 'حذف الوثيقة' : 'Delete Document',
+                                                                    isRTL ? `هل أنت متأكد من حذف وثيقة "${doc.name}"؟` : `Are you sure you want to delete "${doc.name}"?`,
+                                                                    () => {
+                                                                        setCompaniesList(prev => prev.map(c => {
+                                                                            if (c.id === selectedCompany.id) {
+                                                                                const docs = (c.documents || []).filter(d => d.id !== doc.id);
+                                                                                return { ...c, documents: docs };
+                                                                            }
+                                                                            return c;
+                                                                        }));
 
-                                                                    setSelectedCompany(prev => ({
-                                                                        ...prev,
-                                                                        documents: (prev.documents || []).filter(d => d.id !== doc.id)
-                                                                    }));
+                                                                        setSelectedCompany(prev => ({
+                                                                            ...prev,
+                                                                            documents: (prev.documents || []).filter(d => d.id !== doc.id)
+                                                                        }));
 
-                                                                    addNotification(`تم إتلاف / حذف وثيقة (${doc.name}) لشركة ${selectedCompany.name}`, 'danger');
-                                                                }
+                                                                        addNotification(`تم إتلاف / حذف وثيقة (${doc.name}) لشركة ${selectedCompany.name}`, 'danger');
+                                                                    }
+                                                                );
                                                             }}
                                                             className="text-xs text-red-500 hover:text-red-600 font-semibold transition-colors"
                                                         >
@@ -944,6 +984,127 @@ const Companies = () => {
                     </div>
                 </div>
             )}
+
+            {showDocModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-md animate-slide-up">
+                        <div className="p-6 border-b border-dark-100 dark:border-dark-700 flex justify-between items-center">
+                            <h2 className="text-xl font-semibold text-dark-800 dark:text-white">
+                                {docModalMode === 'renew'
+                                    ? (isRTL ? 'تجديد / تعديل الوثيقة' : 'Renew / Edit Document')
+                                    : (isRTL ? 'إضافة وثيقة جديدة' : 'Add New Document')}
+                            </h2>
+                            <button onClick={() => setShowDocModal(false)} className="text-dark-400 hover:text-dark-600 dark:hover:text-white">
+                                <XCircle className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                    {isRTL ? 'اسم الوثيقة' : 'Document Name'} <span className="text-red-500">*</span>
+                                </label>
+                                <input type="text" value={docForm.name} onChange={e => setDocForm(p => ({ ...p, name: e.target.value }))} className="input-field" placeholder={isRTL ? 'اسم الوثيقة' : 'Document name'} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                    {isRTL ? 'رقم الوثيقة' : 'Document Number'}
+                                </label>
+                                <input type="text" value={docForm.number} onChange={e => setDocForm(p => ({ ...p, number: e.target.value }))} className="input-field" placeholder={isRTL ? 'رقم الوثيقة' : 'Document number'} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                        {isRTL ? 'تاريخ الإصدار' : 'Issue Date'}
+                                    </label>
+                                    <input type="date" value={docForm.issueDate} onChange={e => setDocForm(p => ({ ...p, issueDate: e.target.value }))} className="input-field" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                        {isRTL ? 'تاريخ الانتهاء' : 'Expiry Date'} <span className="text-red-500">*</span>
+                                    </label>
+                                    <input type="date" value={docForm.expiryDate} onChange={e => setDocForm(p => ({ ...p, expiryDate: e.target.value }))} className="input-field" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t border-dark-100 dark:border-dark-700 flex justify-end gap-3">
+                            <button onClick={() => setShowDocModal(false)} className="btn-secondary">
+                                {t('cancel')}
+                            </button>
+                            <button onClick={handleSaveDoc} className="btn-primary">
+                                {docModalMode === 'renew' ? (isRTL ? 'تحديث' : 'Update') : (isRTL ? 'إضافة' : 'Add')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {viewerModal.show && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-slide-up">
+                        <div className="p-4 border-b border-dark-100 dark:border-dark-700 flex items-center justify-between shrink-0">
+                            <div className="flex items-center gap-3">
+                                <h3 className="font-semibold text-dark-800 dark:text-white truncate max-w-[300px]">
+                                    {viewerModal.fileName}
+                                </h3>
+                                <span className="text-xs text-dark-400">
+                                    {Math.round(viewerModal.zoom * 100)}%
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setViewerModal(p => ({ ...p, zoom: Math.max(0.25, p.zoom - 0.25) }))}
+                                    className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500"
+                                >
+                                    <ZoomOut className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => setViewerModal(p => ({ ...p, zoom: Math.min(3, p.zoom + 0.25) }))}
+                                    className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500"
+                                >
+                                    <ZoomIn className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => window.open(viewerModal.fileUrl, '_blank', 'noopener,noreferrer')}
+                                    className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500"
+                                >
+                                    <ExternalLink className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => setViewerModal({ show: false, fileUrl: '', fileName: '', zoom: 1 })}
+                                    className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500 hover:text-red-500"
+                                >
+                                    <XCircle className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-4 flex items-start justify-center bg-dark-50 dark:bg-dark-900/50">
+                            {viewerModal.fileUrl.match(/\.(pdf|PDF)$/) ? (
+                                <iframe
+                                    src={viewerModal.fileUrl}
+                                    className="w-full h-[70vh] rounded-xl border-0"
+                                    title={viewerModal.fileName}
+                                />
+                            ) : (
+                                <img
+                                    src={viewerModal.fileUrl}
+                                    alt={viewerModal.fileName}
+                                    className="max-w-full transition-transform duration-200"
+                                    style={{ transform: `scale(${viewerModal.zoom})`, transformOrigin: 'top center' }}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ConfirmModal
+                show={confirmDialog.show}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                onConfirm={() => { confirmDialog.onConfirm?.(); setConfirmDialog({ show: false }); }}
+                onCancel={() => setConfirmDialog({ show: false })}
+            />
         </div>
     );
 };

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { servicesAPI, authAPI, serverStatusToDisplay, displayToServerStatus, normalizeStatus } from '../services/api';
+import ConfirmModal from '../components/ConfirmModal';
 import {
     FileText,
     Search,
@@ -35,6 +36,9 @@ const Transactions = () => {
 
     const [employeesList, setEmployeesList] = useState([]);
     const [transactionsList, setTransactionsList] = useState([]);
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null, danger: false });
+    const showConfirm = (title, message, onConfirm, danger = true) => setConfirmDialog({ show: true, title, message, onConfirm, danger });
+    const [alertDialog, setAlertDialog] = useState({ show: false, title: '', message: '' });
 
     useEffect(() => {
         const fetchData = async () => {
@@ -231,7 +235,7 @@ const Transactions = () => {
         );
         
         // Show success message
-        alert(`${t('quoteSentSuccessfully')} ${transaction.company}`);
+        setAlertDialog({ show: true, title: isRTL ? 'تم الإرسال' : 'Sent', message: `${t('quoteSentSuccessfully')} ${transaction.company}` });
     };
 
     const handleQuoteChange = (e) => {
@@ -259,15 +263,19 @@ const Transactions = () => {
     };
 
     const handleDelete = (id) => {
-        if (window.confirm(isRTL ? 'هل أنت متأكد من حذف هذه المعاملة؟' : 'Are you sure you want to delete this transaction?')) {
-            setTransactionsList(prev => prev.filter(t => t.id !== id));
-            addNotification(
-                isRTL
-                    ? 'تم حذف المعاملة محلياً (لا يوجد endpoint حذف على الخادم)'
-                    : 'Transaction removed locally (no delete endpoint on the server).',
-                'warning'
-            );
-        }
+        showConfirm(
+            isRTL ? 'حذف المعاملة' : 'Delete Transaction',
+            isRTL ? 'هل أنت متأكد من حذف هذه المعاملة؟' : 'Are you sure you want to delete this transaction?',
+            () => {
+                setTransactionsList(prev => prev.filter(t => t.id !== id));
+                addNotification(
+                    isRTL
+                        ? 'تم حذف المعاملة محلياً (لا يوجد endpoint حذف على الخادم)'
+                        : 'Transaction removed locally (no delete endpoint on the server).',
+                    'warning'
+                );
+            }
+        );
     };
 
     const filteredTransactions = transactionsList.filter(tx => {
@@ -527,6 +535,38 @@ const Transactions = () => {
                     </div>
                 </div>
             )}
+
+            {alertDialog.show && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-sm animate-slide-up">
+                        <div className="p-6">
+                            <div className="flex items-start gap-4">
+                                <div className="p-2.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                                    <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-semibold text-dark-800 dark:text-white mb-1">{alertDialog.title}</h3>
+                                    <p className="text-sm text-dark-500 dark:text-dark-400">{alertDialog.message}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-6 pb-6 flex justify-end">
+                            <button onClick={() => setAlertDialog({ show: false })} className="btn-primary">
+                                {isRTL ? 'موافق' : 'OK'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ConfirmModal
+                show={confirmDialog.show}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                onConfirm={() => { confirmDialog.onConfirm?.(); setConfirmDialog({ show: false }); }}
+                onCancel={() => setConfirmDialog({ show: false })}
+            />
         </div>
     );
 };

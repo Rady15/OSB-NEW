@@ -35,19 +35,13 @@ const Sidebar = () => {
         { path: '/settings', icon: Settings, label: 'settings' },
     ];
 
-    const adminMenuItems = [
-        { path: '/employee-permissions', icon: UserCog, label: 'employeePermissions' },
-        { path: '/dev-hub', icon: Users, label: 'Dev Hub' }
-    ];
-
     const visibleBase = baseMenuItems.filter((item) => {
         if (item.adminOnly && !isAdmin) return false;
         if (item.employeeOnly && isAdmin) return false;
         return true;
     });
-    const visibleAdmin = isAdmin ? adminMenuItems : [];
 
-    const menuItems = [...visibleBase, ...visibleAdmin];
+    const menuItems = visibleBase;
 
     const ChevronIcon = isRTL ? ChevronRight : ChevronLeft;
     const ChevronIconOpen = isRTL ? ChevronLeft : ChevronRight;
