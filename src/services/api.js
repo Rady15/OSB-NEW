@@ -200,9 +200,7 @@ export const servicesAPI = {
 export const serviceCategoriesAPI = {
     // POST /admin/services/categories
     addCategory: async (formData) => {
-        const response = await api.post('/admin/services/categories', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const response = await api.post('/admin/services/categories', formData);
         return response.data;
     },
     // GET /admin/services/categories
@@ -212,9 +210,7 @@ export const serviceCategoriesAPI = {
     },
     // PUT /admin/services/categories/{id}
     editCategory: async (id, formData) => {
-        const response = await api.put(`/admin/services/categories/${id}`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const response = await api.put(`/admin/services/categories/${id}`, formData);
         return response.data ?? { success: true };
     },
     // DELETE /admin/services/categories/{id}
