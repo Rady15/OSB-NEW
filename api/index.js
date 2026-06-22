@@ -13,7 +13,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     if (isFormData) {
       fetchHeaders['Content-Type'] = contentType;
-      body = req.body;
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      body = Buffer.concat(chunks);
     } else {
       fetchHeaders['Content-Type'] = 'application/json';
       body = JSON.stringify(req.body);
