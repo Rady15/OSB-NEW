@@ -22,7 +22,6 @@ import {
     ToggleRight,
     ChevronDown,
     X,
-    Image as ImageIcon,
 } from 'lucide-react';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -63,7 +62,7 @@ const Services = () => {
     const [selectedService, setSelectedService] = useState(null);
 
     // ── category form
-    const [catForm, setCatForm] = useState({ nameAr: '', nameEn: '', image: null });
+    const [catForm, setCatForm] = useState({ nameAr: '', nameEn: '' });
     // ── service form
     const [svcForm, setSvcForm] = useState({ nameAr: '', nameEn: '', description: '', categoryId: '', isActive: true });
 
@@ -100,8 +99,8 @@ const Services = () => {
         setModalMode(mode);
         setSelectedCategory(cat);
         setCatForm(cat
-            ? { nameAr: cat.nameAr || cat.name || '', nameEn: cat.nameEn || '', image: null }
-            : { nameAr: '', nameEn: '', image: null }
+            ? { nameAr: cat.nameAr || cat.name || '', nameEn: cat.nameEn || '' }
+            : { nameAr: '', nameEn: '' }
         );
         setShowCategoryModal(true);
     };
@@ -110,16 +109,11 @@ const Services = () => {
         if (!catForm.nameAr.trim()) return;
         setSaving(true);
         try {
-            const hasImage = !!catForm.image;
-            const payload = hasImage
-                ? (() => { const fd = new FormData(); fd.append('NameAr', catForm.nameAr); fd.append('NameEn', catForm.nameEn); fd.append('Image', catForm.image); return fd; })()
-                : { nameAr: catForm.nameAr, nameEn: catForm.nameEn };
-
             if (modalMode === 'edit' && selectedCategory) {
-                await serviceCategoriesAPI.editCategory(selectedCategory.id, payload);
+                await serviceCategoriesAPI.editCategory(selectedCategory.id, catForm);
                 addNotification(isRTL ? 'تم تعديل الفئة بنجاح' : 'Category updated', 'success');
             } else {
-                await serviceCategoriesAPI.addCategory(payload);
+                await serviceCategoriesAPI.addCategory(catForm);
                 addNotification(isRTL ? 'تمت إضافة الفئة بنجاح' : 'Category added', 'success');
             }
             setShowCategoryModal(false);
@@ -588,15 +582,6 @@ const Services = () => {
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1.5">{isRTL ? 'الاسم (إنجليزي)' : 'Name (English)'}</label>
                                 <input type="text" value={catForm.nameEn} onChange={e => setCatForm(p => ({ ...p, nameEn: e.target.value }))} disabled={modalMode === 'view'} className="input-field" placeholder="Legal Services" />
                             </div>
-                            {modalMode !== 'view' && (
-                                <div>
-                                    <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1.5">
-                                        <ImageIcon className="inline w-4 h-4 me-1" />
-                                        {isRTL ? 'صورة الفئة' : 'Category Image'}
-                                    </label>
-                                    <input type="file" accept="image/*" onChange={e => setCatForm(p => ({ ...p, image: e.target.files[0] }))} className="block w-full text-sm text-dark-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100" />
-                                </div>
-                            )}
                         </div>
                         <div className="p-5 border-t border-dark-100 dark:border-dark-700 flex justify-end gap-2">
                             <button onClick={() => setShowCategoryModal(false)} className="btn-secondary">{isRTL ? 'إلغاء' : 'Cancel'}</button>
