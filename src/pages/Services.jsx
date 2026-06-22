@@ -65,7 +65,7 @@ const Services = () => {
     // ── category form
     const [catForm, setCatForm] = useState({ nameAr: '', nameEn: '', image: null });
     // ── service form
-    const [svcForm, setSvcForm] = useState({ nameAr: '', nameEn: '', description: '', categoryId: '', isActive: true });
+    const [svcForm, setSvcForm] = useState({ nameAr: '', nameEn: '', description: '', categoryId: '', isActive: true, image: null });
 
     // ── saving
     const [saving, setSaving] = useState(false);
@@ -76,21 +76,34 @@ const Services = () => {
     const fetchAll = useCallback(async () => {
         setLoading(true);
         setError(null);
-        try {
-            const [cats, svcs, reqs] = await Promise.allSettled([
-                serviceCategoriesAPI.getCategories(),
-                servicesManagementAPI.getAllServices(),
-                serviceRequestsAPI.getAllRequests(),
-            ]);
-            setCategories(Array.isArray(cats.value) ? cats.value : cats.value?.data || cats.value?.categories || []);
-            setServices(Array.isArray(svcs.value) ? svcs.value : svcs.value?.data || svcs.value?.services || []);
-            setRequests(Array.isArray(reqs.value) ? reqs.value : reqs.value?.data || reqs.value?.requests || []);
-        } catch (err) {
-            setError(isRTL ? 'فشل تحميل البيانات' : 'Failed to load data');
-            console.error(err);
-        } finally {
-            setLoading(false);
+        const [cats, svcs, reqs] = await Promise.allSettled([
+            serviceCategoriesAPI.getCategories(),
+            servicesManagementAPI.getAllServices(),
+            serviceRequestsAPI.getAllRequests(),
+        ]);
+
+        const extractData = (result, keys) => {
+            if (result.status === 'rejected') {
+                console.error('[Services] API failed:', result.reason);
+                return [];
+            }
+            const val = result.value;
+            if (Array.isArray(val)) return val;
+            for (const key of keys) {
+                if (val?.[key] && Array.isArray(val[key])) return val[key];
+            }
+            return [];
+        };
+
+        setCategories(extractData(cats, ['data', 'categories']));
+        setServices(extractData(svcs, ['data', 'services']));
+        setRequests(extractData(reqs, ['data', 'requests']));
+
+        const errors = [cats, svcs, reqs].filter(r => r.status === 'rejected');
+        if (errors.length > 0) {
+            setError(isRTL ? 'فشل تحميل بعض البيانات' : 'Failed to load some data');
         }
+        setLoading(false);
     }, [isRTL]);
 
     useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -154,8 +167,8 @@ const Services = () => {
         setModalMode(mode);
         setSelectedService(svc);
         setSvcForm(svc
-            ? { nameAr: svc.nameAr || svc.name || '', nameEn: svc.nameEn || '', description: svc.description || '', categoryId: svc.categoryId || '', isActive: svc.isActive ?? true }
-            : { nameAr: '', nameEn: '', description: '', categoryId: categories[0]?.id || '', isActive: true }
+            ? { nameAr: svc.nameAr || svc.name || '', nameEn: svc.nameEn || '', description: svc.description || '', categoryId: svc.categoryId || '', isActive: svc.isActive ?? true, image: null }
+            : { nameAr: '', nameEn: '', description: '', categoryId: categories[0]?.id || '', isActive: true, image: null }
         );
         setShowServiceModal(true);
     };
@@ -164,11 +177,19 @@ const Services = () => {
         if (!svcForm.nameAr.trim() || !svcForm.categoryId) return;
         setSaving(true);
         try {
+            const fd = new FormData();
+            fd.append('NameAr', svcForm.nameAr);
+            fd.append('NameEn', svcForm.nameEn);
+            fd.append('Description', svcForm.description);
+            fd.append('CategoryId', svcForm.categoryId);
+            fd.append('IsActive', svcForm.isActive);
+            if (svcForm.image) fd.append('Image', svcForm.image);
+
             if (modalMode === 'edit' && selectedService) {
-                await servicesManagementAPI.editService(selectedService.id, svcForm);
+                await servicesManagementAPI.editService(selectedService.id, fd);
                 addNotification(isRTL ? 'تم تعديل الخدمة بنجاح' : 'Service updated', 'success');
             } else {
-                await servicesManagementAPI.addService(svcForm);
+                await servicesManagementAPI.addService(fd);
                 addNotification(isRTL ? 'تمت إضافة الخدمة بنجاح' : 'Service added', 'success');
             }
             setShowServiceModal(false);
@@ -366,9 +387,9 @@ const Services = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {filteredCategories.map((cat, idx) => (
                             <div key={cat.id} className="card card-hover p-6 group">
-                                <div className={`w-14 h-14 bg-gradient-to-br ${getGradient(idx)} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                                <div className={`w-14 h-14 bg-gradient-to-br ${getGradient(idx)} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform overflow-hidden`}>
                                     {cat.imageUrl ? (
-                                        <img src={cat.imageUrl} alt="" className="w-8 h-8 object-contain" />
+                                        <img src={cat.imageUrl} alt="" className="w-full h-full object-cover" />
                                     ) : (
                                         <Tag className="w-7 h-7 text-white" />
                                     )}
@@ -414,8 +435,12 @@ const Services = () => {
                                     <tr key={cat.id} className="table-row">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getGradient(idx)} flex items-center justify-center`}>
-                                                    <Tag className="w-4 h-4 text-white" />
+                                                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getGradient(idx)} flex items-center justify-center overflow-hidden flex-shrink-0`}>
+                                                    {cat.imageUrl ? (
+                                                        <img src={cat.imageUrl} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Tag className="w-4 h-4 text-white" />
+                                                    )}
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-dark-800 dark:text-white">{cat.nameAr || cat.name}</p>
@@ -446,9 +471,13 @@ const Services = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                         {filteredServices.map((svc, idx) => (
                             <div key={svc.id} className="card card-hover p-6 group">
-                                <div className={`w-14 h-14 bg-gradient-to-br ${getGradient(idx)} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                                    <Briefcase className="w-7 h-7 text-white" />
-                                </div>
+                                {svc.imageUrl ? (
+                                    <img src={svc.imageUrl} alt="" className="w-14 h-14 rounded-2xl mb-4 shadow-lg object-cover group-hover:scale-110 transition-transform" />
+                                ) : (
+                                    <div className={`w-14 h-14 bg-gradient-to-br ${getGradient(idx)} rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+                                        <Briefcase className="w-7 h-7 text-white" />
+                                    </div>
+                                )}
                                 <h3 className="text-base font-semibold text-dark-800 dark:text-white mb-1 line-clamp-1">
                                     {isRTL ? (svc.nameAr || svc.name) : (svc.nameEn || svc.nameAr || svc.name)}
                                 </h3>
@@ -488,9 +517,13 @@ const Services = () => {
                                     <tr key={svc.id} className="table-row">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getGradient(idx)} flex items-center justify-center flex-shrink-0`}>
-                                                    <Briefcase className="w-4 h-4 text-white" />
-                                                </div>
+                                                {svc.imageUrl ? (
+                                                    <img src={svc.imageUrl} alt="" className="w-9 h-9 rounded-xl flex-shrink-0 object-cover shadow" />
+                                                ) : (
+                                                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${getGradient(idx)} flex items-center justify-center flex-shrink-0`}>
+                                                        <Briefcase className="w-4 h-4 text-white" />
+                                                    </div>
+                                                )}
                                                 <div>
                                                     <p className="font-medium text-dark-800 dark:text-white">{svc.nameAr || svc.name}</p>
                                                     <p className="text-xs text-dark-400">{svc.nameEn}</p>
@@ -580,6 +613,11 @@ const Services = () => {
                             </button>
                         </div>
                         <div className="p-5 space-y-4">
+                            {modalMode === 'view' && selectedCategory?.imageUrl && (
+                                <div className="flex justify-center mb-2">
+                                    <img src={selectedCategory.imageUrl} alt="" className="w-32 h-32 rounded-2xl object-cover shadow-lg" />
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1.5">{isRTL ? 'الاسم (عربي) *' : 'Name (Arabic) *'}</label>
                                 <input type="text" value={catForm.nameAr} onChange={e => setCatForm(p => ({ ...p, nameAr: e.target.value }))} disabled={modalMode === 'view'} className="input-field" placeholder="الخدمات القانونية" />
@@ -623,6 +661,11 @@ const Services = () => {
                             </button>
                         </div>
                         <div className="p-5 space-y-4">
+                            {modalMode === 'view' && selectedService?.imageUrl && (
+                                <div className="flex justify-center mb-2">
+                                    <img src={selectedService.imageUrl} alt="" className="w-32 h-32 rounded-2xl object-cover shadow-lg" />
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1.5">{isRTL ? 'الاسم (عربي) *' : 'Name (Arabic) *'}</label>
@@ -652,6 +695,15 @@ const Services = () => {
                                     <button onClick={() => setSvcForm(p => ({ ...p, isActive: !p.isActive }))} className={`transition-colors ${svcForm.isActive ? 'text-emerald-500' : 'text-dark-400'}`}>
                                         {svcForm.isActive ? <ToggleRight className="w-8 h-8" /> : <ToggleLeft className="w-8 h-8" />}
                                     </button>
+                                </div>
+                            )}
+                            {modalMode !== 'view' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1.5">
+                                        <ImageIcon className="inline w-4 h-4 me-1" />
+                                        {isRTL ? 'صورة الخدمة' : 'Service Image'}
+                                    </label>
+                                    <input type="file" accept="image/*" onChange={e => setSvcForm(p => ({ ...p, image: e.target.files[0] }))} className="block w-full text-sm text-dark-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100" />
                                 </div>
                             )}
                         </div>

@@ -175,7 +175,7 @@ const Settings = () => {
                         { key: 'email', label: isRTL ? 'إشعارات البريد الإلكتروني' : 'Email Notifications', desc: isRTL ? 'استلام الإشعارات عبر البريد' : 'Receive notifications via email' },
                         { key: 'push', label: isRTL ? 'الإشعارات الفورية' : 'Push Notifications', desc: isRTL ? 'إشعارات المتصفح الفورية' : 'Browser push notifications' },
                         { key: 'sms', label: isRTL ? 'رسائل SMS' : 'SMS Messages', desc: isRTL ? 'إشعارات برسائل نصية' : 'Text message notifications' },
-                        { key: 'transactions', label: isRTL ? 'تحديثات المعاملات' : 'Transaction Updates', desc: isRTL ? 'إشعارات حالة المعاملات' : 'Transaction status updates' },
+                        { key: 'transactions', label: isRTL ? 'تحديثات الطلبات' : 'Request Updates', desc: isRTL ? 'إشعارات حالة الطلبات' : 'Request status updates' },
                         { key: 'updates', label: isRTL ? 'تحديثات النظام' : 'System Updates', desc: isRTL ? 'إشعارات تحديثات النظام' : 'System update notifications' },
                         { key: 'marketing', label: isRTL ? 'العروض والتسويق' : 'Marketing & Offers', desc: isRTL ? 'عروض وترويجات خاصة' : 'Special offers and promotions' },
                     ].map((item) => (

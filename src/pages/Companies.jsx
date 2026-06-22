@@ -873,6 +873,19 @@ const Companies = () => {
                                                             <Eye className="w-3.5 h-3.5" />
                                                             {isRTL ? 'عرض' : 'View'}
                                                         </button>
+                                                        {doc.fileUrl && doc.fileUrl !== '#' && (
+                                                            <>
+                                                                <span className="text-dark-300 dark:text-dark-600">|</span>
+                                                                <a
+                                                                    href={doc.fileUrl}
+                                                                    download
+                                                                    className="text-xs text-dark-500 hover:text-primary-500 font-semibold transition-colors flex items-center gap-1"
+                                                                >
+                                                                    <Download className="w-3.5 h-3.5" />
+                                                                    {isRTL ? 'تحميل' : 'Download'}
+                                                                </a>
+                                                            </>
+                                                        )}
                                                         <span className="text-dark-300 dark:text-dark-600">|</span>
                                                         {/* Renew/Edit document directly */}
                                                         <button
@@ -1066,9 +1079,18 @@ const Companies = () => {
                                 <button
                                     onClick={() => window.open(viewerModal.fileUrl, '_blank', 'noopener,noreferrer')}
                                     className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500"
+                                    title={isRTL ? 'فتح في نافذة جديدة' : 'Open in new tab'}
                                 >
                                     <ExternalLink className="w-5 h-5" />
                                 </button>
+                                <a
+                                    href={viewerModal.fileUrl}
+                                    download
+                                    className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500"
+                                    title={isRTL ? 'تحميل' : 'Download'}
+                                >
+                                    <Download className="w-5 h-5" />
+                                </a>
                                 <button
                                     onClick={() => setViewerModal({ show: false, fileUrl: '', fileName: '', zoom: 1 })}
                                     className="p-2 hover:bg-dark-100 dark:hover:bg-dark-700 rounded-lg transition-colors text-dark-500 hover:text-red-500"
@@ -1078,11 +1100,12 @@ const Companies = () => {
                             </div>
                         </div>
                         <div className="flex-1 overflow-auto p-4 flex items-start justify-center bg-dark-50 dark:bg-dark-900/50">
-                            {viewerModal.fileUrl.match(/\.(pdf|PDF)$/) ? (
-                                <iframe
+                            {/\.pdf/i.test(viewerModal.fileUrl) ? (
+                                <embed
                                     src={viewerModal.fileUrl}
                                     className="w-full h-[70vh] rounded-xl border-0"
                                     title={viewerModal.fileName}
+                                    type="application/pdf"
                                 />
                             ) : (
                                 <img

@@ -96,7 +96,7 @@ const Reports = () => {
         const revenue = 0;
         const uniqueCompanies = new Set(filtered.map(r => r.appUserId).filter(Boolean)).size;
         return [
-            { label: isRTL ? 'إجمالي المعاملات' : 'Total Transactions', value: total.toLocaleString(), icon: FileText, color: 'from-blue-500 to-blue-600' },
+            { label: isRTL ? 'إجمالي الطلبات' : 'Total Requests', value: total.toLocaleString(), icon: FileText, color: 'from-blue-500 to-blue-600' },
             { label: isRTL ? 'الشركات المشاركة' : 'Companies', value: uniqueCompanies.toLocaleString(), icon: Building2, color: 'from-emerald-500 to-emerald-600' },
             { label: isRTL ? 'الإيرادات' : 'Revenue', value: revenue > 0 ? `${(revenue / 1000).toFixed(1)}K` : '0', icon: TrendingUp, color: 'from-purple-500 to-purple-600' },
             { label: isRTL ? 'معدل الإنجاز' : 'Completion', value: `${completionRate}%`, icon: Users, color: 'from-amber-500 to-amber-600' },
@@ -254,7 +254,7 @@ const Reports = () => {
                 {/* Transactions Chart */}
                 <div className="card p-6">
                     <h3 className="text-lg font-semibold text-dark-800 dark:text-white mb-6">
-                        {isRTL ? 'المعاملات حسب الشهر' : 'Transactions by Month'}
+                        {isRTL ? 'الطلبات حسب الشهر' : 'Requests by Month'}
                     </h3>
                     <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">

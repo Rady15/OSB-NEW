@@ -357,7 +357,7 @@ const Dashboard = () => {
                                     strokeWidth={2}
                                     fillOpacity={1}
                                     fill="url(#colorTransactions)"
-                                    name={isRTL ? 'المعاملات' : 'Transactions'}
+                                    name={isRTL ? 'الطلبات' : 'Requests'}
                                 />
                             </AreaChart>
                         </ResponsiveContainer>

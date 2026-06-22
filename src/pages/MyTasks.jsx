@@ -179,7 +179,7 @@ const MyTasks = () => {
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{isRTL ? 'الشركة' : 'Company'}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{isRTL ? 'البريد' : 'Email'}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{isRTL ? 'الهاتف' : 'Phone'}</th>
-                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{isRTL ? 'المعاملات' : 'Requests'}</th>
+                                    <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{isRTL ? 'الطلبات' : 'Requests'}</th>
                                     <th className="px-4 py-3 text-start text-xs font-semibold text-dark-500 dark:text-dark-400 uppercase">{t('status')}</th>
                                 </tr>
                             </thead>
@@ -229,7 +229,7 @@ const MyTasks = () => {
                             <Inbox className="w-10 h-10 text-dark-300" />
                             <p className="text-sm text-dark-500">{t('noAssignedItems')}</p>
                             <Link to="/transactions" className="text-sm text-primary-500 hover:text-primary-600 inline-flex items-center gap-1">
-                                {isRTL ? 'تصفح كل المعاملات' : 'Browse all transactions'}
+                                {isRTL ? 'تصفح كل الطلبات' : 'Browse all requests'}
                                 <ChevronRight className="w-4 h-4" />
                             </Link>
                         </div>

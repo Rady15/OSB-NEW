@@ -80,7 +80,7 @@ const Employees = () => {
 
     const departments = [
         { value: 'all', label: isRTL ? 'جميع الأقسام' : 'All Departments' },
-        { value: 'transactions', label: isRTL ? 'المعاملات' : 'Transactions' },
+        { value: 'transactions', label: isRTL ? 'الطلبات' : 'Requests' },
         { value: 'licenses', label: isRTL ? 'التراخيص' : 'Licenses' },
         { value: 'customer-service', label: isRTL ? 'خدمة العملاء' : 'Customer Service' },
         { value: 'accounting', label: isRTL ? 'المحاسبة' : 'Accounting' },

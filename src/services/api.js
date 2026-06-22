@@ -81,9 +81,9 @@ export const authAPI = {
         }
         return response.data;
     },
-    // GET /Account/all
+    // GET /admin/users
     getAllUsers: async () => {
-        const response = await api.get('/Account/all');
+        const response = await api.get('/admin/users');
         return response.data;
     },
     // GET /Account/AllStaff
@@ -96,14 +96,14 @@ export const authAPI = {
         const response = await api.post('/Account/create-employee', staffData);
         return response.data ?? { success: true };
     },
-    // PUT /Account/suspend/{userName}
-    suspendUser: async (userName) => {
-        const response = await api.put(`/Account/suspend/${userName}`);
+    // PUT /admin/users/{id}/suspend
+    suspendUser: async (id) => {
+        const response = await api.put(`/admin/users/${id}/suspend`);
         return response.data ?? { success: true };
     },
-    // PUT /Account/unsuspend/{userName}
-    unsuspendUser: async (userName) => {
-        const response = await api.put(`/Account/unsuspend/${userName}`);
+    // PUT /admin/users/{id}/unsuspend
+    unsuspendUser: async (id) => {
+        const response = await api.put(`/admin/users/${id}/unsuspend`);
         return response.data ?? { success: true };
     },
     // PUT /Account/update-employee

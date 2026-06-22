@@ -499,25 +499,31 @@ const Transactions = () => {
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                         {t('service')}
                                     </label>
-                                    <input type="text" value={formData.serviceName} disabled className="input-field bg-dark-50 dark:bg-dark-700" />
+                                    <input type="text" value={formData.serviceName} disabled={modalMode === 'view'} onChange={e => setFormData(p => ({ ...p, serviceName: e.target.value }))} className="input-field" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                         {t('date')}
                                     </label>
-                                    <input type="text" value={formData.createdDate} disabled className="input-field bg-dark-50 dark:bg-dark-700" />
+                                    <input type="text" value={formData.createdDate} disabled={modalMode === 'view'} onChange={e => setFormData(p => ({ ...p, createdDate: e.target.value }))} className="input-field" />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                         {t('status')}
                                     </label>
-                                    <input type="text" value={formData.status} disabled className="input-field bg-dark-50 dark:bg-dark-700" />
+                                    <select value={formData.status} disabled={modalMode === 'view'} onChange={e => setFormData(p => ({ ...p, status: e.target.value }))} className="input-field">
+                                        <option value="pending">{t('pending')}</option>
+                                        <option value="processing">{t('processing')}</option>
+                                        <option value="waitingPayment">{t('waitingPayment')}</option>
+                                        <option value="completed">{t('completed')}</option>
+                                        <option value="rejected">{t('rejected')}</option>
+                                    </select>
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
                                         {t('description')}
                                     </label>
-                                    <textarea rows={3} value={formData.description} disabled className="input-field bg-dark-50 dark:bg-dark-700 resize-none" />
+                                    <textarea rows={3} value={formData.description} disabled={modalMode === 'view'} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className="input-field resize-none" />
                                 </div>
                             </div>
                         </div>
