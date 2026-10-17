@@ -86,14 +86,29 @@ export const authAPI = {
         const response = await api.get('/admin/users');
         return response.data;
     },
-    // GET /Account/AllStaff
+    // GET /admin/employees
     getAllStaff: async () => {
-        const response = await api.get('/Account/AllStaff');
-        return response.data;
+        const response = await api.get('/admin/employees');
+        const raw = Array.isArray(response.data) ? response.data : (response.data?.users || response.data?.data || []);
+        // Map displayName → userName/fullName for backward compat with consumers
+        return raw.map(e => ({
+            id: e.id,
+            userName: e.displayName || e.userName,
+            fullName: e.displayName || e.fullName || e.userName,
+            displayName: e.displayName,
+            email: e.email,
+            isSuspended: e.isSuspended ?? false,
+            role: e.role || 'employee',
+            createdAt: e.createdAt,
+        }));
     },
-    // POST /Account/create-employee
+    // POST /admin/employees
     addStaff: async (staffData) => {
-        const response = await api.post('/Account/create-employee', staffData);
+        const response = await api.post('/admin/employees', {
+            displayName: staffData.displayName || staffData.userName || staffData.email,
+            email: staffData.email,
+            password: staffData.password || 'Temp@1234',
+        });
         return response.data ?? { success: true };
     },
     // PUT /admin/users/{id}/suspend
@@ -123,6 +138,44 @@ export const authAPI = {
         if (token) localStorage.setItem('token', token);
         if (response.data?.refreshToken) localStorage.setItem('refreshToken', response.data.refreshToken);
         return response.data;
+    },
+};
+
+// ---------------------------------------------------------------------------
+// Employees API  →  /api/admin/employees
+// ---------------------------------------------------------------------------
+export const employeesAPI = {
+    // GET /admin/employees
+    getAll: async () => {
+        const response = await api.get('/admin/employees');
+        const raw = Array.isArray(response.data) ? response.data : (response.data?.users || response.data?.data || []);
+        return raw.map(e => ({
+            id: e.id,
+            displayName: e.displayName || e.userName || '',
+            email: e.email || '',
+            isSuspended: e.isSuspended ?? false,
+            createdAt: e.createdAt || null,
+        }));
+    },
+    // POST /admin/employees
+    add: async ({ displayName, email, password }) => {
+        const response = await api.post('/admin/employees', { displayName, email, password });
+        return response.data ?? { success: true };
+    },
+    // DELETE /admin/employees/{id}
+    delete: async (id) => {
+        const response = await api.delete(`/admin/employees/${id}`);
+        return response.data ?? { success: true };
+    },
+    // PUT /admin/employees/requests/{requestId}/assign
+    assignRequest: async (requestId, employeeId) => {
+        const response = await api.put(`/admin/employees/requests/${requestId}/assign`, { employeeId });
+        return response.data ?? { success: true };
+    },
+    // PUT /admin/employees/requests/{requestId}/unassign
+    unassignRequest: async (requestId) => {
+        const response = await api.put(`/admin/employees/requests/${requestId}/unassign`);
+        return response.data ?? { success: true };
     },
 };
 
@@ -325,6 +378,16 @@ export const documentsAPI = {
     getDocumentTypes: async () => {
         const response = await api.get('/documents/types');
         return response.data;
+    },
+    // POST /documents/types
+    createDocumentType: async (payload) => {
+        const response = await api.post('/documents/types', payload);
+        return response.data;
+    },
+    // DELETE /documents/types/{value}
+    deleteDocumentType: async (value) => {
+        const response = await api.delete(`/documents/types/${encodeURIComponent(value)}`);
+        return response.data ?? { success: true };
     },
     // POST /documents (form-data: DocumentType, DocumentName, File, IssueDate, ExpiryDate, ReferenceNumber, Notes)
     uploadDocument: async (formData) => {

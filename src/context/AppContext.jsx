@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { translations } from '../i18n/translations';
+import { CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
 
 const AppContext = createContext();
 
@@ -149,12 +150,10 @@ export const AppProvider = ({ children }) => {
                         }`}
                     >
                         <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[20px]">
-                                {toast.type === 'success' ? 'check_circle' :
-                                 toast.type === 'warning' ? 'warning' :
-                                 toast.type === 'danger' ? 'error' :
-                                 'info'}
-                            </span>
+                            {toast.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
+                             toast.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
+                             toast.type === 'danger' ? <XCircle className="w-5 h-5" /> :
+                             <Info className="w-5 h-5" />}
                             <p className="text-xs font-semibold leading-relaxed text-right">{toast.message}</p>
                         </div>
                         <button className="text-white/70 hover:text-white text-xs font-black">×</button>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { servicesAPI, dashboardAPI, normalizeStatus } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { servicesAPI, dashboardAPI, documentsAPI, normalizeStatus } from '../services/api';
 import { SkeletonCard, SkeletonTable } from '../components/Skeleton';
 import {
     Building2,
@@ -50,13 +52,18 @@ function extractCount(data, ...keys) {
 }
 
 const Dashboard = () => {
+    const navigate = useNavigate();
     const { t, isRTL, isDark } = useApp();
+    const { user } = useAuth();
     const [stats, setStats] = useState([]);
     const [monthlyData, setMonthlyData] = useState([]);
     const [pieData, setPieData] = useState([]);
     const [recentTransactions, setRecentTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState(null);
+    const isEmployee = user?.role === 'employee';
+    const [docStats, setDocStats] = useState(null);
+    const [docLoading, setDocLoading] = useState(false);
     
     useEffect(() => {
         const controller = new AbortController();
@@ -90,12 +97,12 @@ const Dashboard = () => {
                 const totalReqs  = reqTotal      || all.length;
 
                 setStats([
-                    { label: 'totalUsers',       value: usersCount.toString(),     gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',       shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',       trend: 'up', change: '', icon: Users },
-                    { label: 'totalCompanies',   value: companiesCount.toString(), gradient: 'bg-gradient-to-br from-purple-500 to-purple-600',   shadowColor: 'shadow-purple-200 dark:shadow-purple-900/30',   trend: 'up', change: '', icon: Building2 },
-                    { label: 'totalServices',    value: servicesCount.toString(),  gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',  shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',   trend: 'up', change: '', icon: Layers },
-                    { label: 'totalDocuments',   value: docsCount.toString(),      gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',    shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',     trend: 'up', change: '', icon: FileText },
-                    { label: 'pending',          value: pending.toString(),        gradient: 'bg-gradient-to-br from-orange-500 to-orange-600',  shadowColor: 'shadow-orange-200 dark:shadow-orange-900/30',   trend: 'up', change: '', icon: Clock },
-                    { label: 'completed',        value: completed.toString(),      gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30', trend: 'up', change: '', icon: ShieldCheck },
+                    { label: 'totalUsers',       value: usersCount.toString(),     gradient: 'bg-gradient-to-br from-blue-500 to-blue-600',       shadowColor: 'shadow-blue-200 dark:shadow-blue-900/30',       trend: 'up', change: '', icon: Users, path: '/users' },
+                    { label: 'totalCompanies',   value: companiesCount.toString(), gradient: 'bg-gradient-to-br from-purple-500 to-purple-600',   shadowColor: 'shadow-purple-200 dark:shadow-purple-900/30',   trend: 'up', change: '', icon: Building2, path: '/companies' },
+                    { label: 'totalServices',    value: servicesCount.toString(),  gradient: 'bg-gradient-to-br from-indigo-500 to-indigo-600',  shadowColor: 'shadow-indigo-200 dark:shadow-indigo-900/30',   trend: 'up', change: '', icon: Layers, path: '/services' },
+                    { label: 'totalDocuments',   value: docsCount.toString(),      gradient: 'bg-gradient-to-br from-amber-500 to-amber-600',    shadowColor: 'shadow-amber-200 dark:shadow-amber-900/30',     trend: 'up', change: '', icon: FileText, path: '/companies' },
+                    { label: 'pending',          value: pending.toString(),        gradient: 'bg-gradient-to-br from-orange-500 to-orange-600',  shadowColor: 'shadow-orange-200 dark:shadow-orange-900/30',   trend: 'up', change: '', icon: Clock, path: '/transactions' },
+                    { label: 'completed',        value: completed.toString(),      gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-600',shadowColor: 'shadow-emerald-200 dark:shadow-emerald-900/30', trend: 'up', change: '', icon: ShieldCheck, path: '/transactions' },
                 ]);
 
                 // Monthly chart from requests list
@@ -172,13 +179,43 @@ const Dashboard = () => {
     }, []);
 
 
-    // Stats will be loaded from API; placeholder will show loading state
-
-    // Monthly data will be loaded from API
-
-    // Pie data will be loaded from API
-
-    // Recent transactions will be loaded from API
+    // Fetch documents for employee dashboard
+    useEffect(() => {
+        if (!isEmployee) return;
+        let cancelled = false;
+        (async () => {
+            setDocLoading(true);
+            try {
+                const raw = await documentsAPI.getAdminAllDocuments();
+                if (cancelled) return;
+                const groups = Array.isArray(raw) ? raw : [];
+                const allDocs = groups.flatMap(g => (g.documents || []).map(d => ({
+                    ...d,
+                    expiryDate: d.expiryDate || d.expiry_date || '',
+                })));
+                const now = new Date();
+                const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                let active = 0, expired = 0, expiringSoon = 0;
+                for (const doc of allDocs) {
+                    if (!doc.expiryDate || doc.expiryDate === '0001-01-01T00:00:00') {
+                        active++;
+                        continue;
+                    }
+                    const exp = new Date(doc.expiryDate);
+                    if (isNaN(exp.getTime())) { active++; continue; }
+                    if (exp < now) { expired++; }
+                    else if (exp <= in30) { expiringSoon++; }
+                    else { active++; }
+                }
+                if (!cancelled) setDocStats({ total: allDocs.length, active, expired, expiringSoon });
+            } catch {
+                if (!cancelled) setDocStats(null);
+            } finally {
+                if (!cancelled) setDocLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [isEmployee]);
 
     const getStatusColor = (status) => {
         switch (normalizeStatus(status)) {
@@ -282,11 +319,15 @@ const Dashboard = () => {
                         return (
                             <div
                                 key={index}
+                                onClick={() => stat.path && navigate(stat.path)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => { if (e.key === 'Enter' && stat.path) navigate(stat.path); }}
                                 className={`
                     stat-card ${stat.gradient} text-white
                     shadow-lg ${stat.shadowColor}
                     hover:scale-[1.02] transition-transform duration-300
-                    animate-slide-up
+                    animate-slide-up cursor-pointer
                   `}
                                 style={{ animationDelay: `${index * 100}ms` }}
                             >
@@ -487,6 +528,52 @@ const Dashboard = () => {
                     )}
                 </div>
             </div>
+            {/* Employee: Company Documents Status */}
+            {isEmployee && (
+                <div className="space-y-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-dark-800 dark:text-white">
+                            {isRTL ? 'ملفات الشركات' : 'Company Files'}
+                        </h2>
+                        <p className="text-sm text-dark-400">
+                            {isRTL ? 'حالة الملفات السارية والمنتهية والتي قرب الانتهاء' : 'Active, expired & expiring-soon files'}
+                        </p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {docLoading ? (
+                            <>
+                                <div className="card p-4 animate-pulse"><div className="h-10 bg-dark-100 dark:bg-dark-700 rounded" /></div>
+                                <div className="card p-4 animate-pulse"><div className="h-10 bg-dark-100 dark:bg-dark-700 rounded" /></div>
+                                <div className="card p-4 animate-pulse"><div className="h-10 bg-dark-100 dark:bg-dark-700 rounded" /></div>
+                                <div className="card p-4 animate-pulse"><div className="h-10 bg-dark-100 dark:bg-dark-700 rounded" /></div>
+                            </>
+                        ) : docStats ? (
+                            <>
+                                <div className="card p-4">
+                                    <p className="text-2xl font-bold text-dark-800 dark:text-white">{docStats.total}</p>
+                                    <p className="text-xs text-dark-400">{isRTL ? 'إجمالي الملفات' : 'Total Files'}</p>
+                                </div>
+                                <div className="card p-4 border-emerald-200 dark:border-emerald-800">
+                                    <p className="text-2xl font-bold text-emerald-600">{docStats.active}</p>
+                                    <p className="text-xs text-dark-400">{isRTL ? 'سارية' : 'Active'}</p>
+                                </div>
+                                <div className="card p-4 border-red-200 dark:border-red-800">
+                                    <p className="text-2xl font-bold text-red-600">{docStats.expired}</p>
+                                    <p className="text-xs text-dark-400">{isRTL ? 'منتهية' : 'Expired'}</p>
+                                </div>
+                                <div className="card p-4 border-amber-200 dark:border-amber-800">
+                                    <p className="text-2xl font-bold text-amber-600">{docStats.expiringSoon}</p>
+                                    <p className="text-xs text-dark-400">{isRTL ? 'قرب الانتهاء' : 'Expiring Soon'}</p>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="card p-4 col-span-full text-center text-dark-400">
+                                {isRTL ? 'تعذر تحميل بيانات الملفات' : 'Could not load file data'}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

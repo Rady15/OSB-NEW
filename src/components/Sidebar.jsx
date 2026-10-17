@@ -28,10 +28,11 @@ const Sidebar = () => {
         { path: '/my-tasks', icon: FileText, label: 'myTasks', adminOnly: false, employeeOnly: true },
         { path: '/companies', icon: Building2, label: 'companies' },
         { path: '/transactions', icon: FileText, label: 'transactions' },
-        { path: '/services', icon: Briefcase, label: 'services' },
+        { path: '/services', icon: Briefcase, label: 'services', adminOnly: true },
         { path: '/employees', icon: UserCog, label: 'employees', adminOnly: true },
         { path: '/users', icon: Users2, label: 'users', adminOnly: true },
-        { path: '/reports', icon: BarChart3, label: 'reports' },
+        { path: '/reports', icon: BarChart3, label: 'reports', adminOnly: true },
+        { path: '/document-types', icon: FileText, label: 'documentTypes', adminOnly: true },
         { path: '/settings', icon: Settings, label: 'settings' },
     ];
 

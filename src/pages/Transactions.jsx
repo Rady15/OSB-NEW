@@ -248,6 +248,8 @@ const Transactions = () => {
 
  
 
+    const [saving, setSaving] = useState(false);
+
     const handleSave = async () => {
         if (modalMode === 'view') {
             handleCloseModal();
@@ -255,11 +257,37 @@ const Transactions = () => {
         }
 
         if (modalMode === 'edit') {
+            const previous = transactionsList;
+            const newStatus = formData.status;
+            const oldStatus = selectedTransaction.status;
             setTransactionsList(prev => prev.map(t => t.id === selectedTransaction.id ? { ...formData } : t));
+            handleCloseModal();
+
+            if (newStatus !== oldStatus) {
+                setSaving(true);
+                try {
+                    const serverStatus = displayToServerStatus(newStatus);
+                    await servicesAPI.updateStatus(selectedTransaction.id, serverStatus);
+                    addNotification(
+                        isRTL ? 'تم تحديث حالة الطلب' : 'Request status updated',
+                        'success'
+                    );
+                } catch (err) {
+                    setTransactionsList(previous);
+                    const apiMsg = err?.response?.data?.message || err?.response?.data || err?.message;
+                    addNotification(
+                        (isRTL ? 'فشل تحديث الحالة: ' : 'Failed to update status: ') +
+                        (typeof apiMsg === 'string' ? apiMsg : 'server error'),
+                        'danger'
+                    );
+                } finally {
+                    setSaving(false);
+                }
+            }
         } else {
             setTransactionsList(prev => [...prev, { ...formData }]);
+            handleCloseModal();
         }
-        handleCloseModal();
     };
 
     const handleDelete = (id) => {

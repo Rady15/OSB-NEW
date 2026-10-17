@@ -38,11 +38,26 @@ const Companies = () => {
     const fetchCompanies = async () => {
         setLoading(true);
         try {
+            const isEmployee = user?.role === 'employee';
+
+            // For employees: first get their assigned request company IDs
+            let assignedCompanyIds = null;
+            if (isEmployee) {
+                try {
+                    const myReqs = await servicesAPI.getStaffRequests();
+                    const reqs = Array.isArray(myReqs) ? myReqs : (myReqs?.requests || []);
+                    const ids = new Set();
+                    for (const r of reqs) {
+                        if (r.userId || r.companyId) ids.add(String(r.userId || r.companyId));
+                    }
+                    assignedCompanyIds = ids.size > 0 ? ids : null;
+                } catch { /* ignore */ }
+            }
+
             const [data, docGroups] = await Promise.all([
-                dashboardAPI.getCompaniesStats(),
+                dashboardAPI.getCompaniesStats().catch(() => null),
                 documentsAPI.getAdminAllDocuments().catch(() => [])
             ]);
-            // /api/documents/admin/all returns [{ userId, userName, email, totalDocuments, documents: [...] }]
             const docsMap = {};
             const list = Array.isArray(docGroups) ? docGroups : [];
             for (const g of list) {
@@ -57,9 +72,9 @@ const Companies = () => {
                 }));
             }
             setDocsByCompany(docsMap);
-            const companies = Array.isArray(data)
+            const companies = data && Array.isArray(data)
                 ? data : (data?.companies || data?.data || []);
-            const formatted = companies.map(c => ({
+            let formatted = companies.map(c => ({
                 id: c.id || c.userId,
                 userId: c.userId,
                 name: c.nameAr || c.userName || '—',
@@ -85,6 +100,12 @@ const Companies = () => {
                 hasGovernmentDocsFile: c.hasGovernmentDocsFile,
                 documents: docsMap[String(c.userId)] || docsMap[String(c.id)] || [],
             }));
+
+            // Filter to assigned companies for employees
+            if (isEmployee && assignedCompanyIds) {
+                formatted = formatted.filter(c => assignedCompanyIds.has(String(c.userId || c.id)));
+            }
+
             setCompaniesList(formatted);
         } catch (error) {
             console.error('Error fetching companies:', error);
@@ -96,7 +117,7 @@ const Companies = () => {
 
     useEffect(() => {
         fetchCompanies();
-    }, []);
+    }, [user]);
     const [showModal, setShowModal] = useState(false);
     const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', 'view'
     const [selectedCompany, setSelectedCompany] = useState(null);

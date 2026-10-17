@@ -18,6 +18,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const EmployeePermissionsPage = lazy(() => import('./pages/EmployeePermissions'));
 const DevHub = lazy(() => import('./pages/DevHub'));
 const MyTasks = lazy(() => import('./pages/MyTasks'));
+const DocumentTypes = lazy(() => import('./pages/DocumentTypes'));
 
 const PageLoader = () => (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -84,9 +85,11 @@ function App() {
                                 </Suspense>
                             } />
                             <Route path="services" element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <Services />
-                                </Suspense>
+                                <ProtectedRoute requiredPermissions={['view_all']}>
+                                    <Suspense fallback={<PageLoader />}>
+                                        <Services />
+                                    </Suspense>
+                                </ProtectedRoute>
                             } />
                             <Route path="employees" element={
                                 <Suspense fallback={<PageLoader />}>
@@ -99,9 +102,11 @@ function App() {
                                 </Suspense>
                             } />
                             <Route path="reports" element={
-                                <Suspense fallback={<PageLoader />}>
-                                    <Reports />
-                                </Suspense>
+                                <ProtectedRoute requiredPermissions={['view_all']}>
+                                    <Suspense fallback={<PageLoader />}>
+                                        <Reports />
+                                    </Suspense>
+                                </ProtectedRoute>
                             } />
                             <Route path="settings" element={
                                 <Suspense fallback={<PageLoader />}>
@@ -112,6 +117,13 @@ function App() {
                                 <Suspense fallback={<PageLoader />}>
                                     <DevHub />
                                 </Suspense>
+                            } />
+                            <Route path="document-types" element={
+                                <ProtectedRoute requiredPermissions={['view_all']}>
+                                    <Suspense fallback={<PageLoader />}>
+                                        <DocumentTypes />
+                                    </Suspense>
+                                </ProtectedRoute>
                             } />
                             <Route path="employee-permissions" element={
                                 <ProtectedRoute requiredPermissions={['manage_employees']}>
