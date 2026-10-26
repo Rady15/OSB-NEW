@@ -18,9 +18,10 @@ const DocumentTypes = () => {
         setLoading(true);
         try {
             const data = await documentsAPI.getDocumentTypes();
-            setTypes(Array.isArray(data) ? data : (data?.types || data?.data || []));
+            const items = Array.isArray(data) ? data : (data?.types || data?.data || []);
+            setTypes(items);
         } catch (err) {
-            addNotification?.(isRTL ? 'تعذّر تحميل أنواع المستندات' : 'Failed to load document types', 'danger');
+            addNotification?.(isRTL ? 'طھط¹ط°ظ‘ط± طھط­ظ…ظٹظ„ ط£ظ†ظˆط§ط¹ ط§ظ„ظ…ط³طھظ†ط¯ط§طھ' : 'Failed to load document types', 'danger');
             setTypes([]);
         } finally {
             setLoading(false);
@@ -101,16 +102,16 @@ const DocumentTypes = () => {
                 ) : (
                     <ul className="divide-y divide-dark-100 dark:divide-dark-700">
                         {types.map((t, i) => (
-                            <li key={t.value || i} className="flex items-center justify-between p-4">
+                            <li key={t.id || t.value || i} className="flex items-center justify-between p-4">
                                 <div className="flex items-center gap-3">
                                     <FileText className="w-5 h-5 text-primary-500" />
                                     <div>
                                         <p className="font-medium text-dark-800 dark:text-white">{t.nameAr || t.name || t.value}</p>
-                                        {t.nameEn && <p className="text-xs text-dark-400">{t.nameEn}</p>}
+                                        {(t.nameEn || t.nameEN) && <p className="text-xs text-dark-400">{t.nameEn || t.nameEN}</p>}
                                     </div>
                                 </div>
                                 {isAdmin && (
-                                    <button onClick={() => handleDelete(t.value)} className="text-red-500 hover:text-red-600 p-2">
+                                    <button onClick={() => handleDelete(t.id || t.value)} className="text-red-500 hover:text-red-600 p-2">
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 )}

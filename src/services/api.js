@@ -374,19 +374,24 @@ export const dashboardAPI = {
 // Documents API
 // ---------------------------------------------------------------------------
 export const documentsAPI = {
-    // GET /documents/types
+    // GET /admin/document-types
     getDocumentTypes: async () => {
-        const response = await api.get('/documents/types');
+        const response = await api.get('/admin/document-types');
         return response.data;
     },
-    // POST /documents/types
+    // POST /admin/document-types
     createDocumentType: async (payload) => {
-        const response = await api.post('/documents/types', payload);
+        const response = await api.post('/admin/document-types', payload);
         return response.data;
     },
-    // DELETE /documents/types/{value}
-    deleteDocumentType: async (value) => {
-        const response = await api.delete(`/documents/types/${encodeURIComponent(value)}`);
+    // PUT /admin/document-types/{id}
+    updateDocumentType: async (id, payload) => {
+        const response = await api.put(`/admin/document-types/${id}`, payload);
+        return response.data ?? { success: true };
+    },
+    // DELETE /admin/document-types/{id}
+    deleteDocumentType: async (id) => {
+        const response = await api.delete(`/admin/document-types/${encodeURIComponent(id)}`);
         return response.data ?? { success: true };
     },
     // POST /documents (form-data: DocumentType, DocumentName, File, IssueDate, ExpiryDate, ReferenceNumber, Notes)
