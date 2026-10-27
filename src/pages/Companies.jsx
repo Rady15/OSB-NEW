@@ -125,7 +125,9 @@ const Companies = () => {
     const [docModalMode, setDocModalMode] = useState('add');
     const [docForm, setDocForm] = useState({ name: '', number: '', issueDate: '', expiryDate: '' });
     const [editDocId, setEditDocId] = useState(null);
-    const resetDocForm = () => setDocForm({ name: '', number: '', issueDate: '', expiryDate: '' });
+    const [docFile, setDocFile] = useState(null);
+    const [docUploading, setDocUploading] = useState(false);
+    const resetDocForm = () => { setDocForm({ name: '', number: '', issueDate: '', expiryDate: '' }); setDocFile(null); };
     const [viewerModal, setViewerModal] = useState({ show: false, fileUrl: '', fileName: '', zoom: 1 });
     const [formData, setFormData] = useState({
         name: '',
@@ -258,46 +260,72 @@ const Companies = () => {
         }
     };
 
-    const handleSaveDoc = () => {
+    const handleSaveDoc = async () => {
         if (!docForm.name.trim() || !docForm.expiryDate.trim()) return;
-        const docId = editDocId || Date.now();
-        const docData = {
-            id: docId,
-            name: docForm.name.trim(),
-            number: docForm.number.trim() || '—',
-            issueDate: docForm.issueDate || '—',
-            expiryDate: docForm.expiryDate,
-            fileUrl: '#'
-        };
+        setDocUploading(true);
+        try {
+            if (docModalMode === 'add' && docFile) {
+                const formData = new FormData();
+                formData.append('DocumentType', docForm.name.trim());
+                formData.append('DocumentName', docForm.name.trim());
+                if (docForm.number) formData.append('ReferenceNumber', docForm.number.trim());
+                if (docForm.issueDate) formData.append('IssueDate', docForm.issueDate);
+                if (docForm.expiryDate) formData.append('ExpiryDate', docForm.expiryDate);
+                formData.append('File', docFile);
+                await documentsAPI.uploadDocument(formData);
+                await fetchCompanies();
+                addNotification(isRTL ? 'طھظ… ط±ظپط¹ ط§ظ„ظˆط«ظٹظ‚ط© ط¨ظ†ط¬ط§ط­' : 'Document uploaded successfully', 'success');
+                setShowDocModal(false);
+                resetDocForm();
+                setDocUploading(false);
+                return;
+            }
 
-        if (docModalMode === 'renew' && editDocId) {
-            setCompaniesList(prev => prev.map(c => {
-                if (c.id === selectedCompany.id) {
-                    const docs = (c.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d);
-                    return { ...c, documents: docs };
-                }
-                return c;
-            }));
-            setSelectedCompany(prev => ({
-                ...prev,
-                documents: (prev.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d)
-            }));
-            addNotification(`تم تجديد وثيقة (${docData.name})`, 'warning');
-        } else {
-            setCompaniesList(prev => prev.map(c => {
-                if (c.id === selectedCompany.id) {
-                    const docs = c.documents ? [...c.documents, docData] : [docData];
-                    return { ...c, documents: docs };
-                }
-                return c;
-            }));
-            setSelectedCompany(prev => ({
-                ...prev,
-                documents: prev.documents ? [...prev.documents, docData] : [docData]
-            }));
-            addNotification(`تمت إضافة وثيقة جديدة (${docData.name})`, 'success');
+            const docId = editDocId || Date.now();
+            const docData = {
+                id: docId,
+                name: docForm.name.trim(),
+                number: docForm.number.trim() || '—',
+                issueDate: docForm.issueDate || '—',
+                expiryDate: docForm.expiryDate,
+                fileUrl: '#'
+            };
+
+            if (docModalMode === 'renew' && editDocId) {
+                setCompaniesList(prev => prev.map(c => {
+                    if (c.id === selectedCompany.id) {
+                        const docs = (c.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d);
+                        return { ...c, documents: docs };
+                    }
+                    return c;
+                }));
+                setSelectedCompany(prev => ({
+                    ...prev,
+                    documents: (prev.documents || []).map(d => d.id === editDocId ? { ...d, ...docData } : d)
+                }));
+                addNotification(isRTL ? `طھظ… طھط­ط¯ظٹط« ط§ظ„ظˆط«ظٹظ‚ط© (${docData.name})` : `Document updated (${docData.name})`, 'warning');
+            } else {
+                setCompaniesList(prev => prev.map(c => {
+                    if (c.id === selectedCompany.id) {
+                        const docs = c.documents ? [...c.documents, docData] : [docData];
+                        return { ...c, documents: docs };
+                    }
+                    return c;
+                }));
+                setSelectedCompany(prev => ({
+                    ...prev,
+                    documents: prev.documents ? [...prev.documents, docData] : [docData]
+                }));
+                addNotification(isRTL ? `طھظ…طھ ط¥ط¶ط§ظپط© ظˆط«ظٹظ‚ط© ط¬ط¯ظٹط¯ط© (${docData.name})` : `Document added (${docData.name})`, 'success');
+            }
+            setShowDocModal(false);
+            resetDocForm();
+        } catch (err) {
+            addNotification(isRTL ? 'ظپط´ظ„ ط±ظپط¹ ط§ظ„ظˆط«ظٹظ‚ط©' : 'Failed to upload document', 'danger');
+        } finally {
+            setDocUploading(false);
         }
-        setShowDocModal(false);
+    };
     };
 
     const handleDelete = (id) => {
@@ -510,8 +538,20 @@ const Companies = () => {
                                             <div>
                                                 <p className="font-medium text-dark-800 dark:text-white text-sm">{company.name}</p>
                                                 <p className="text-xs text-dark-400">{company.email}</p>
-                                            </div>
-                                        </div>
+                            <div>
+                                <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-2">
+                                    {isRTL ? 'ظ…ظ„ظپ ط§ظ„ظˆط«ظٹظ‚ط©' : 'Document File'}
+                                </label>
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                    onChange={(e) => setDocFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+                                    className="input-field"
+                                />
+                                {docFile && (
+                                    <p className="text-xs text-dark-400 mt-1">{docFile.name}</p>
+                                )}
+                            </div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="font-mono text-xs text-dark-600 dark:text-dark-300">{company.registrationNumber}</span>
@@ -1060,14 +1100,14 @@ const Companies = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="p-6 border-t border-dark-100 dark:border-dark-700 flex justify-end gap-3">
-                            <button onClick={() => setShowDocModal(false)} className="btn-secondary">
-                                {t('cancel')}
-                            </button>
-                            <button onClick={handleSaveDoc} className="btn-primary">
-                                {docModalMode === 'renew' ? (isRTL ? 'تحديث' : 'Update') : (isRTL ? 'إضافة' : 'Add')}
-                            </button>
-                        </div>
+        <div className="p-6 border-t border-dark-100 dark:border-dark-700 flex justify-end gap-3">
+            <button onClick={() => setShowDocModal(false)} className="btn-secondary" disabled={docUploading}>
+                {t('cancel')}
+            </button>
+            <button onClick={handleSaveDoc} className="btn-primary" disabled={docUploading}>
+                {docUploading ? (isRTL ? 'ط¬ط§ط±ظٹ ط§ظ„ط±ظپط¹...' : 'Uploading...') : (docModalMode === 'renew' ? (isRTL ? 'طھط­ط¯ظٹط«' : 'Update') : (isRTL ? 'ط¥ط¶ط§ظپط©' : 'Add'))}
+            </button>
+        </div>
                     </div>
                 </div>
             )}
